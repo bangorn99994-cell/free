@@ -1,79 +1,94 @@
--- Simple UI Panel Example (Safe & For Study)
--- This script creates a draggable panel with working buttons
+--[[
+  UNIVERSAL ESP SCRIPT (Lua/Luau) - Designed for direct execution in Delta/Fluxus
+  * โค้ดนี้ไม่ใช้ loadstring/HttpGet จึงไม่ต้องพึ่งพา GitHub และทำงานได้เสถียรกว่า *
+--]]
 
--- Create ScreenGui
-local ScreenGui = Instance.new("ScreenGui")
-ScreenGui.Parent = game:GetService("CoreGui")
-ScreenGui.ResetOnSpawn = false
+local Players = game:GetService("Players")
+local RunService = game:GetService("RunService")
+local LocalPlayer = Players.LocalPlayer
 
--- Main Panel
-local Panel = Instance.new("Frame")
-Panel.Size = UDim2.new(0, 220, 0, 150)
-Panel.Position = UDim2.new(0.5, -110, 0.5, -75)
-Panel.BackgroundColor3 = Color3.fromRGB(35, 35, 35)
-Panel.Active = true
-Panel.Draggable = true
-Panel.Parent = ScreenGui
+local ESP_TOGGLE = true -- สถานะเริ่มต้น: เปิด ESP ทันทีที่รัน
+local ESP_COLOR = Color3.fromRGB(255, 165, 0) -- สีส้ม (มองเห็นง่าย)
+local ESP_DEPTH = Enum.DepthMode.AlwaysOnTop -- มองเห็นทะลุกำแพง
 
--- Title Bar
-local Title = Instance.new("TextLabel")
-Title.Size = UDim2.new(1, 0, 0, 32)
-Title.BackgroundColor3 = Color3.fromRGB(50, 50, 50)
-Title.Text = "My Panel"
-Title.TextColor3 = Color3.fromRGB(255, 255, 255)
-Title.TextSize = 18
-Title.Parent = Panel
+-- ## 1. ฟังก์ชันสร้าง Highlight (กลไกหลักของ ESP)
 
--- Button 1: Message
-local Btn1 = Instance.new("TextButton")
-Btn1.Size = UDim2.new(1, -20, 0, 30)
-Btn1.Position = UDim2.new(0, 10, 0, 45)
-Btn1.BackgroundColor3 = Color3.fromRGB(70, 70, 70)
-Btn1.TextColor3 = Color3.fromRGB(255, 255, 255)
-Btn1.Text = "Show Message"
-Btn1.Parent = Panel
+local function createHighlight(instance, esp_id)
+    -- ตรวจสอบและสร้าง Highlight (ถ้ายังไม่มี)
+    local highlight = instance:FindFirstChild(esp_id)
+    if highlight then
+        return highlight
+    end
 
-Btn1.MouseButton1Click:Connect(function()
-    game.StarterGui:SetCore("SendNotification", {
-        Title = "Panel";
-        Text = "Button Clicked!";
-        Duration = 2;
-    })
-end)
+    highlight = Instance.new("Highlight")
+    highlight.Name = esp_id -- ใช้ ID เพื่อค้นหา
+    highlight.FillColor = ESP_COLOR
+    highlight.OutlineColor = Color3.fromRGB(255, 255, 255)
+    highlight.Adornee = instance -- ผูกติดกับ Object
+    highlight.FillTransparency = 0.6
+    highlight.DepthMode = ESP_DEPTH
+    highlight.Parent = instance
+    return highlight
+end
 
--- Button 2: Change Color
-local Btn2 = Instance.new("TextButton")
-Btn2.Size = UDim2.new(1, -20, 0, 30)
-Btn2.Position = UDim2.new(0, 10, 0, 80)
-Btn2.BackgroundColor3 = Color3.fromRGB(70, 70, 70)
-Btn2.TextColor3 = Color3.fromRGB(255, 255, 255)
-Btn2.Text = "Change Panel Color"
-Btn2.Parent = Panel
+-- ## 2. ฟังก์ชันหลักในการค้นหาและอัปเดตผู้เล่น
 
-Btn2.MouseButton1Click:Connect(function()
-    Panel.BackgroundColor3 = Color3.fromRGB(
-        math.random(50, 255),
-        math.random(50, 255),
-        math.random(50, 255)
-    )
-end)
+local function updateESP()
+    if not ESP_TOGGLE or not LocalPlayer then
+        return
+    end
 
--- Button 3: Hide Panel
-local Btn3 = Instance.new("TextButton")
-Btn3.Size = UDim2.new(1, -20, 0, 30)
-Btn3.Position = UDim2.new(0, 10, 0, 115)
-Btn3.BackgroundColor3 = Color3.fromRGB(70, 70, 70)
-Btn3.TextColor3 = Color3.fromRGB(255, 255, 255)
-Btn3.Text = "Hide / Show"
-Btn3.Parent = Panel
+    for _, player in pairs(Players:GetPlayers()) do
+        -- ข้ามตัวผู้เล่นเองและตรวจสอบว่าผู้เล่นยังมีตัวละครหรือไม่
+        if player == LocalPlayer or not player.Character then
+            continue
+        end
 
-local hidden = false
+        local Character = player.Character
 
-Btn3.MouseButton1Click:Connect(function()
-    hidden = not hidden
-    for _, v in pairs(Panel:GetChildren()) do
-        if v ~= Title and v:IsA("GuiObject") then
-            v.Visible = not hidden
+        local humanoid = Character:FindFirstChildOfClass("Humanoid")
+
+        if humanoid and humanoid.Health > 0 then
+            -- พยายามหา HumanoidRootPart เป็นจุดหลักในการ Adorn
+            local PartToAdorn = Character:FindFirstChild("HumanoidRootPart")
+
+            if PartToAdorn then
+                createHighlight(PartToAdorn, "DeltaESPHighlight")
+            else
+                -- หากไม่มี HumanoidRootPart (เช่น โมเดลแปลกๆ) ให้ Adorn ที่ Model หลัก
+                createHighlight(Character, "DeltaESPHighlight")
+            end
+        else
+            -- ลบ Highlight ถ้าตัวละครตาย
+            pcall(function()
+                Character:FindFirstChild("DeltaESPHighlight"):Destroy()
+            end)
         end
     end
-end)
+end
+
+-- เชื่อมต่อกับ RenderStepped เพื่ออัปเดตอย่างต่อเนื่อง (FPS สูง)
+RunService:BindToRenderStep("DeltaESPUpdate", Enum.RenderPriority.Camera.Value + 1, updateESP)
+
+
+-- ## 3. ระบบควบคุม (Toggle Function)
+
+-- ฟังก์ชันสำหรับเปิด/ปิด ESP
+function ToggleDeltaESP()
+    ESP_TOGGLE = not ESP_TOGGLE
+    print("[Delta ESP Toggle]: ESP ตอนนี้สถานะ: " .. tostring(ESP_TOGGLE))
+    
+    -- ถ้าปิด ให้ลบ Highlight ทันที
+    if not ESP_TOGGLE then
+        for _, player in pairs(Players:GetPlayers()) do
+            if player.Character then
+                pcall(function()
+                    player.Character:FindFirstChild("DeltaESPHighlight"):Destroy()
+                end)
+            end
+        end
+    end
+end
+
+print("✅ Delta ESP Script Loaded Successfully!")
+print("💡 พิมพ์ 'ToggleDeltaESP()' ใน Console/ช่อง Executor เพื่อเปิด/ปิด")
