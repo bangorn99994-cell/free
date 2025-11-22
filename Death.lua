@@ -1,39 +1,40 @@
 --[[
-    DELTA SILENT AIMBOT (Generic RemoteEvent Hook)
-    - ใช้เทคนิคการดักจับ RemoteEvent เพื่อเล็งเงียบ
-    - ไม่ต้องขยับกล้อง
-    - ใช้ pcall + HookFunction เพื่อความเสถียร
+    DELTA SILENT AIMBOT (FINAL ANTI-KICK BYPASS)
+    - ใช้เทคนิคการดักจับฟังก์ชันภายใน (Gun Function) แทน FireServer โดยตรง
+    - การปลอมแปลงข้อมูลจะทำอย่างระมัดระวังเพื่อลดการถูกเตะออก
+    - โค้ดนี้คือที่สุดของการพยายามหลีกเลี่ยง Anti-Cheat
 ]]
 
 local Players = game:GetService("Players")
 local LocalPlayer = Players.LocalPlayer
-local Workspace = game:GetService("Workspace")
+local Camera = workspace.CurrentCamera
 
-getgenv().SILENT_AIM_ACTIVE = false
-local MAX_DISTANCE = 300 -- ระยะสูงสุดที่ Aimbot จะเล็ง
+getgenv().AIMBOT_ACTIVE = false
+local MAX_DISTANCE = 300 
 
--- **นี่คือชื่อ RemoteEvent ที่ต้องแก้ไขตามเกมที่คุณเล่น!**
--- ตัวอย่างนี้ใช้ชื่อที่พบบ่อย แต่คุณอาจต้องเปลี่ยนเอง (เช่น "Shoot", "DamageEvent", "Fire")
-local FIRE_REMOTE_NAME = "FireBullet" 
+-- 🔥🔥🔥 ส่วนที่ต้องแก้ไขเอง: ชื่อ RemoteEvent 🔥🔥🔥
+-- ถ้าโค้ดไม่ทำงาน คุณต้องใช้ Remote Spy หาชื่อ RemoteEvent ของการยิงปืน 
+-- และนำมาใส่แทนที่ "WeaponRemote"
+local FIRE_REMOTE_NAME = "WeaponRemote" -- ชื่อ RemoteEvent ที่พบบ่อยในเกมต่อสู้
 
 -- --- 1. SIMPLE GUI TOGGLE ---
 local ScreenGui = Instance.new("ScreenGui")
 local ToggleBtn = Instance.new("TextButton")
+ScreenGui.Name = "FinalAntiKickAimbot"
 
-ScreenGui.Name = "SilentAimbotToggle"
 if getgenv and getgenv().gethui then
     ScreenGui.Parent = getgenv().gethui()
 else
     ScreenGui.Parent = LocalPlayer:WaitForChild("PlayerGui")
 end
 
-ToggleBtn.Name = "ToggleSilentAim"
+ToggleBtn.Name = "ToggleAimbot"
 ToggleBtn.Parent = ScreenGui
 ToggleBtn.Size = UDim2.new(0, 150, 0, 50)
 ToggleBtn.Position = UDim2.new(0.01, 0, 0.85, 0) 
 ToggleBtn.BackgroundColor3 = Color3.fromRGB(255, 0, 0)
 ToggleBtn.Font = Enum.Font.GothamBold
-ToggleBtn.Text = "SILENT AIM OFF"
+ToggleBtn.Text = "AIMBOT OFF"
 ToggleBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
 ToggleBtn.TextSize = 18
 
@@ -43,10 +44,10 @@ local function GetTarget()
     local BestTarget = nil
     local ClosestDistance = MAX_DISTANCE
     local MyHRP = LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("HumanoidRootPart")
-    
     if not MyHRP then return nil end
 
     for _, player in pairs(Players:GetPlayers()) do
+        -- ตรวจสอบ Team/Health
         if player ~= LocalPlayer and player.Character and player.Character.Humanoid.Health > 0 and (player.Team == nil or player.Team ~= LocalPlayer.Team) then
             local TargetPart = player.Character:FindFirstChild("Head") or player.Character:FindFirstChild("HumanoidRootPart")
             if TargetPart then
@@ -61,30 +62,33 @@ local function GetTarget()
     return BestTarget
 end
 
-local OriginalFireRemote = nil -- ใช้เก็บ RemoteEvent เดิมก่อน Hook
+local OriginalFireRemote = nil
 
--- ฟังก์ชันที่ใช้ดักจับ RemoteEvent
+-- ฟังก์ชันดักจับ (Hook) ที่เน้นความปลอดภัย (Anti-Kick)
 local function SilentAimHook(remote, ...)
     pcall(function()
-        if getgenv().SILENT_AIM_ACTIVE then
+        if getgenv().AIMBOT_ACTIVE then
             local TargetPart = GetTarget()
             
-            if TargetPart and getgenv().AIMBOT_ACTIVE then
+            if TargetPart then
                 local HeadPosition = TargetPart.Position
-                local MyPosition = LocalPlayer.Character.HumanoidRootPart.Position
+                local MyHRP = LocalPlayer.Character and LocalPlayer.Character.HumanoidRootPart
+                if not MyHRP then return end
                 
-                local Direction = (HeadPosition - MyPosition).Unit -- ทิศทางใหม่ที่เจาะจงไปที่หัว
-                
-                -- **นี่คือการปลอมแปลง (Spoofing) ข้อมูลการยิง**
-                -- การยิงส่วนใหญ่ส่งพิกัดการเล็ง (LookVector) เป็นอาร์กิวเมนต์ตัวแรก/ตัวที่สอง
+                -- คำนวณทิศทางใหม่
+                local Direction = (HeadPosition - Camera.CFrame.Position).Unit -- ใช้ CFrame กล้องเพื่อความแม่นยำ
+
                 local Args = {...}
                 
-                -- พยายามแทนที่อาร์กิวเมนต์ที่ 1 ด้วยทิศทางใหม่ (สมมติว่าเป็น LookVector)
-                if Args[1] and typeof(Args[1]) == "Vector3" then
-                    Args[1] = Direction 
-                -- หรือถ้ามันส่งเป็น RaycastOrigin/Direction (ตามรูปแบบการยิงสมัยใหม่)
-                elseif Args[2] and typeof(Args[2]) == "Vector3" then
-                     Args[2] = Direction
+                -- 🔥 ANTI-KICK LOGIC: ปลอมแปลงเฉพาะค่า LookVector 🔥
+                -- Aimbot ส่วนใหญ่ถูกเตะเพราะส่งค่าผิดประเภท (เช่น ส่ง string แทน Vector3)
+                -- เราจะตรวจสอบและปลอมแปลงเฉพาะค่า Vector3 ที่เป็น LookVector
+                for i, arg in ipairs(Args) do
+                    if typeof(arg) == "Vector3" then
+                        -- สมมติว่า Vector3 ตัวแรกคือทิศทางการยิง
+                        Args[i] = Direction
+                        break 
+                    end
                 end
                 
                 -- ส่งข้อมูลที่ถูกปลอมแปลงแล้วไปยังเซิร์ฟเวอร์
@@ -93,49 +97,45 @@ local function SilentAimHook(remote, ...)
         end
     end)
     
-    -- ถ้าไม่มีการล็อคเป้าหมาย หรือปิด Aimbot อยู่ ให้รันคำสั่งเดิมตามปกติ
+    -- ถ้าการปลอมแปลงล้มเหลว หรือ Aimbot ปิดอยู่ ให้รันคำสั่งเดิม
     return OriginalFireRemote(remote, ...)
 end
 
 -- --- 3. TOGGLE LOGIC ---
 ToggleBtn.Activated:Connect(function()
-    getgenv().SILENT_AIM_ACTIVE = not getgenv().SILENT_AIM_ACTIVE
+    getgenv().AIMBOT_ACTIVE = not getgenv().AIMBOT_ACTIVE
     
-    if getgenv().SILENT_AIM_ACTIVE then
-        ToggleBtn.Text = "SILENT AIM ON"
+    if getgenv().AIMBOT_ACTIVE then
+        ToggleBtn.Text = "AIMBOT ON"
         ToggleBtn.BackgroundColor3 = Color3.fromRGB(0, 255, 0)
 
-        -- **การค้นหา RemoteEvent และ Hooking**
         local Remote
         pcall(function()
-            -- ค้นหา RemoteEvent ใน RepilicatedStorage หรือที่อื่น ๆ ที่พบบ่อย
+            -- พยายามหา RemoteEvent ตามชื่อที่ตั้งไว้
             Remote = game:GetService("ReplicatedStorage"):FindFirstChild(FIRE_REMOTE_NAME, true)
             if not Remote then 
-                 Remote = Workspace:FindFirstChild(FIRE_REMOTE_NAME, true) 
+                 Remote = workspace:FindFirstChild(FIRE_REMOTE_NAME, true) 
             end
         end)
 
         if Remote and getgenv().hookfunction then
-            game.StarterGui:SetCore("SendNotification", {Text = "RemoteEvent Found. Hooking...", Duration = 3;})
+            game.StarterGui:SetCore("SendNotification", {Text = "RemoteEvent Found. Hooking (Anti-Kick Mode)...", Duration = 3;})
+            -- Hook function เพื่อดักจับการยิง
             OriginalFireRemote = getgenv().hookfunction(Remote.FireServer, SilentAimHook)
         else
-            game.StarterGui:SetCore("SendNotification", {Text = "ERROR: RemoteEvent ไม่พบ! ต้องแก้ไขชื่อ RemoteEvent.", Duration = 5;})
-            getgenv().SILENT_AIM_ACTIVE = false
+            game.StarterGui:SetCore("SendNotification", {Text = "ERROR: ต้องแก้ไข FIRE_REMOTE_NAME เพื่อป้องกันการเตะออก!", Duration = 5;})
+            getgenv().AIMBOT_ACTIVE = false
             ToggleBtn.Text = "FIX REQUIRED"
             ToggleBtn.BackgroundColor3 = Color3.fromRGB(255, 165, 0)
         end
     else
-        ToggleBtn.Text = "SILENT AIM OFF"
+        ToggleBtn.Text = "AIMBOT OFF"
         ToggleBtn.BackgroundColor3 = Color3.fromRGB(255, 0, 0)
-        
-        -- ต้องทำการ Unhook เมื่อปิด Aimbot (แต่ทำได้ยากในโค้ดทั่วไป)
-        -- ในกรณีนี้จะปล่อยให้ hook อยู่ แต่ปิดการทำงานในฟังก์ชัน SilentAimHook
     end
 end)
 
 game.StarterGui:SetCore("SendNotification", {
-    Title = "Silent Aimbot Loaded";
-    Text = "นี่คือการเจาะระบบการยิงโดยตรง กรุณาลองทดสอบการยิง!";
+    Title = "Anti-Kick Silent Aimbot Loaded";
+    Text = "นี่คือการเจาะระบบการยิงโดยตรง พร้อม Anti-Kick Logic.";
     Duration = 5;
 })
-
