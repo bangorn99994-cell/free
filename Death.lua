@@ -1,30 +1,25 @@
 --[[ 
-    GOD LOCK 1000% (Distance Based)
-    - ล็อคคนที่อยู่ใกล้ตัวที่สุด (ไม่ต้องเอาเมาส์ชี้)
-    - ล็อคติดหัว 100% กระโดดไม่หลุด
-    - ทะลุกำแพง (ถ้าอยู่ใกล้)
+    DELTA BOX ESP (Mobile Optimized)
+    - สร้างกรอบสี่เหลี่ยมรอบตัวศัตรู
+    - มองทะลุกำแพง (Always On Top)
+    - มีเส้นบอกเลือด (Health Bar)
 ]]
 
 local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
-local UserInputService = game:GetService("UserInputService")
 local LocalPlayer = Players.LocalPlayer
-local Camera = workspace.CurrentCamera
+local UserInputService = game:GetService("UserInputService")
 
--- ตั้งค่าความโหด
-getgenv().GodLock = false 
-local Target = nil
-local MaxDistance = 500 -- ระยะทำการ (หน่วยเป็น Studs)
+getgenv().ESP = false
 
--- --- สร้าง GUI (แบบลากได้ + กดติดง่าย) ---
+-- --- 1. สร้างปุ่ม GUI (แบบเดิมที่ใช้งานได้ดี) ---
 local ScreenGui = Instance.new("ScreenGui")
 local MainFrame = Instance.new("Frame")
 local ToggleBtn = Instance.new("TextButton")
 local UICorner = Instance.new("UICorner")
 local UIStroke = Instance.new("UIStroke")
-local RangeLabel = Instance.new("TextLabel")
 
-ScreenGui.Name = "GodLockGUI"
+ScreenGui.Name = "BoxESPGui"
 if getgenv and getgenv().gethui then
     ScreenGui.Parent = getgenv().gethui()
 elseif game.CoreGui:FindFirstChild("RobloxGui") then
@@ -33,34 +28,32 @@ else
     ScreenGui.Parent = LocalPlayer:WaitForChild("PlayerGui")
 end
 
--- กรอบหลัก
 MainFrame.Name = "MainFrame"
 MainFrame.Parent = ScreenGui
 MainFrame.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
 MainFrame.BackgroundTransparency = 1.000
-MainFrame.Position = UDim2.new(0.8, -20, 0.35, 0) -- ขวาบน
-MainFrame.Size = UDim2.new(0, 85, 0, 85)
+MainFrame.Position = UDim2.new(0.8, -20, 0.55, 0) -- อยู่ต่ำลงมาจากปุ่มล็อคเดิมหน่อย
+MainFrame.Size = UDim2.new(0, 70, 0, 70)
 
--- ปุ่มกด
 ToggleBtn.Name = "ToggleBtn"
 ToggleBtn.Parent = MainFrame
-ToggleBtn.BackgroundColor3 = Color3.fromRGB(0, 0, 0) -- สีดำดุๆ
+ToggleBtn.BackgroundColor3 = Color3.fromRGB(30, 30, 30)
 ToggleBtn.Position = UDim2.new(0, 0, 0, 0)
 ToggleBtn.Size = UDim2.new(1, 0, 1, 0)
 ToggleBtn.Font = Enum.Font.GothamBold
-ToggleBtn.Text = "GOD\nLOCK"
-ToggleBtn.TextColor3 = Color3.fromRGB(255, 0, 0)
-ToggleBtn.TextSize = 18.000
+ToggleBtn.Text = "ESP\nBOX"
+ToggleBtn.TextColor3 = Color3.fromRGB(0, 255, 255) -- สีฟ้า
+ToggleBtn.TextSize = 16.000
 ToggleBtn.AutoButtonColor = true
 
-UICorner.CornerRadius = UDim.new(1, 0) -- วงกลม
+UICorner.CornerRadius = UDim.new(0, 12)
 UICorner.Parent = ToggleBtn
 
 UIStroke.Parent = ToggleBtn
-UIStroke.Thickness = 4
-UIStroke.Color = Color3.fromRGB(255, 0, 0)
+UIStroke.Thickness = 3
+UIStroke.Color = Color3.fromRGB(0, 255, 255)
 
--- --- ระบบลากปุ่ม (กันบัค) ---
+-- ระบบลากปุ่ม
 local dragging, dragInput, dragStart, startPos
 local function update(input)
     local delta = input.Position - dragStart
@@ -79,74 +72,118 @@ ToggleBtn.InputChanged:Connect(function(input)
 end)
 UserInputService.InputChanged:Connect(function(input) if input == dragInput and dragging then update(input) end end)
 
--- --- เปิด/ปิด ---
+-- --- 2. ฟังก์ชันสร้าง ESP ---
+local function CreateESP(player)
+    -- เช็คว่ามี ESP เดิมอยู่ไหม ถ้ามีให้ลบออกก่อน
+    if player.Character and player.Character:FindFirstChild("HumanoidRootPart") then
+        if player.Character.HumanoidRootPart:FindFirstChild("BoxESP") then
+            player.Character.HumanoidRootPart.BoxESP:Destroy()
+        end
+
+        -- สร้าง BillboardGui (ตัวป้ายที่ลอยเหนือหัว)
+        local espBox = Instance.new("BillboardGui")
+        espBox.Name = "BoxESP"
+        espBox.Adornee = player.Character.HumanoidRootPart
+        espBox.Size = UDim2.new(4, 0, 5.5, 0) -- ขนาดกรอบ (กว้าง x สูง)
+        espBox.AlwaysOnTop = true -- **หัวใจสำคัญ: ทำให้มองทะลุกำแพง**
+        espBox.Parent = player.Character.HumanoidRootPart
+
+        -- สร้างกรอบสี่เหลี่ยม (Frame)
+        local border = Instance.new("Frame")
+        border.Size = UDim2.new(1, 0, 1, 0)
+        border.Position = UDim2.new(0, 0, 0, -0.5) -- จัดตำแหน่งให้พอดีตัว
+        border.BackgroundTransparency = 1 -- พื้นหลังใส
+        border.BorderColor3 = Color3.fromRGB(255, 0, 0) -- สีเส้น (แดง)
+        border.BorderSizePixel = 2 -- ความหนาเส้น
+        border.Parent = espBox
+
+        -- (แถม) หลอดเลือด
+        local hpBar = Instance.new("Frame")
+        hpBar.Size = UDim2.new(0.05, 0, 1, 0) -- หลอดแนวตั้ง
+        hpBar.Position = UDim2.new(-0.1, 0, 0, -0.5)
+        hpBar.BackgroundColor3 = Color3.fromRGB(0, 255, 0) -- สีเขียว
+        hpBar.BorderSizePixel = 0
+        hpBar.Parent = espBox
+        
+        -- อัปเดตหลอดเลือดเรื่อยๆ
+        task.spawn(function()
+            while player.Character and player.Character:FindFirstChild("Humanoid") and espBox.Parent do
+                local hum = player.Character.Humanoid
+                hpBar.Size = UDim2.new(0.05, 0, (hum.Health / hum.MaxHealth), 0)
+                hpBar.Position = UDim2.new(-0.1, 0, (1 - (hum.Health / hum.MaxHealth)) - 0.5, 0)
+                
+                -- เปลี่ยนสีตามเลือด
+                if hum.Health < 30 then
+                    hpBar.BackgroundColor3 = Color3.fromRGB(255, 0, 0)
+                else
+                    hpBar.BackgroundColor3 = Color3.fromRGB(0, 255, 0)
+                end
+                task.wait(0.1)
+            end
+        end)
+    end
+end
+
+local function RemoveESP(player)
+    if player.Character and player.Character:FindFirstChild("HumanoidRootPart") and player.Character.HumanoidRootPart:FindFirstChild("BoxESP") then
+        player.Character.HumanoidRootPart.BoxESP:Destroy()
+    end
+end
+
+-- --- 3. ระบบควบคุมหลัก ---
+
+-- ปุ่มเปิด/ปิด
 ToggleBtn.Activated:Connect(function()
     if dragging and (UserInputService:GetMouseLocation() - Vector2.new(dragStart.X, dragStart.Y)).Magnitude > 10 then return end
 
-    getgenv().GodLock = not getgenv().GodLock
+    getgenv().ESP = not getgenv().ESP
     
-    if getgenv().GodLock then
-        ToggleBtn.Text = "ACTIVE"
-        ToggleBtn.TextColor3 = Color3.fromRGB(0, 255, 0) -- เขียวแสบตา
-        UIStroke.Color = Color3.fromRGB(0, 255, 0)
-        ToggleBtn.BackgroundColor3 = Color3.fromRGB(20, 20, 20)
+    if getgenv().ESP then
+        ToggleBtn.Text = "ON"
+        ToggleBtn.BackgroundColor3 = Color3.fromRGB(0, 255, 0)
+        ToggleBtn.TextColor3 = Color3.fromRGB(0, 0, 0)
+        
+        -- เริ่มทำงานทันที
+        for _, v in pairs(Players:GetPlayers()) do
+            if v ~= LocalPlayer and v.Team ~= LocalPlayer.Team then
+                CreateESP(v)
+            end
+        end
     else
-        ToggleBtn.Text = "GOD\nLOCK"
-        ToggleBtn.TextColor3 = Color3.fromRGB(255, 0, 0)
-        UIStroke.Color = Color3.fromRGB(255, 0, 0)
-        ToggleBtn.BackgroundColor3 = Color3.fromRGB(0, 0, 0)
-        Target = nil
+        ToggleBtn.Text = "ESP\nBOX"
+        ToggleBtn.BackgroundColor3 = Color3.fromRGB(30, 30, 30)
+        ToggleBtn.TextColor3 = Color3.fromRGB(0, 255, 255)
+        
+        -- ลบออกทันที
+        for _, v in pairs(Players:GetPlayers()) do
+            RemoveESP(v)
+        end
     end
 end)
 
--- --- ฟังก์ชันหาคนใกล้ตัวที่สุด (Nearest Distance) ---
-local function GetNearestTarget()
-    local ClosestDist = math.huge
-    local ClosestPlayer = nil
-    
-    -- ตำแหน่งตัวเรา
-    local MyPos = LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("HumanoidRootPart") and LocalPlayer.Character.HumanoidRootPart.Position
-    if not MyPos then return nil end
-
-    for _, v in pairs(Players:GetPlayers()) do
-        -- เงื่อนไขพื้นฐาน
-        if v ~= LocalPlayer and v.Character and v.Character:FindFirstChild("Head") and v.Character:FindFirstChild("Humanoid") and v.Character.Humanoid.Health > 0 then
-            
-            -- เช็คทีม
-            if v.Team ~= nil and LocalPlayer.Team ~= nil and v.Team == LocalPlayer.Team then
-                continue
-            end
-
-            -- วัดระยะห่าง (Magnitude)
-            local EnemyPos = v.Character.HumanoidRootPart.Position
-            local Dist = (MyPos - EnemyPos).Magnitude
-            
-            -- ถ้าอยู่ในระยะ และ ใกล้กว่าคนก่อนหน้า ให้เลือกคนนี้
-            if Dist < MaxDistance and Dist < ClosestDist then
-                ClosestDist = Dist
-                ClosestPlayer = v
-            end
+-- อัปเดตเมื่อมีคนเกิดใหม่ หรือคนเข้าเกม
+Players.PlayerAdded:Connect(function(player)
+    player.CharacterAdded:Connect(function()
+        if getgenv().ESP and player.Team ~= LocalPlayer.Team then
+            task.wait(1) -- รอโหลดตัวแปปนึง
+            CreateESP(player)
         end
-    end
-    return ClosestPlayer
+    end)
+end)
+
+for _, player in pairs(Players:GetPlayers()) do
+    player.CharacterAdded:Connect(function()
+        if getgenv().ESP and player.Team ~= LocalPlayer.Team then
+            task.wait(1)
+            CreateESP(player)
+        end
+    end)
 end
 
--- --- ระบบทำงาน (Heartbeat - เร็วที่สุด) ---
-RunService.RenderStepped:Connect(function()
-    if getgenv().GodLock then
-        -- สแกนหาคนใกล้ตัวตลอดเวลา
-        Target = GetNearestTarget()
+-- แจ้งเตือน
+game.StarterGui:SetCore("SendNotification", {
+    Title = "Box ESP Loaded";
+    Text = "Tap button to see through walls!";
+    Duration = 3;
+})
 
-        if Target and Target.Character and Target.Character:FindFirstChild("Head") then
-            --[[ 
-               THE 1000% LOCK 
-               ใช้ CFrame ตรงๆ เพื่อบังคับกล้อง
-               ไม่มีการเช็คกำแพง (Wall Check)
-               ไม่มีการหน่วง (No Smoothing)
-            ]]
-            Camera.CFrame = CFrame.new(Camera.CFrame.Position, Target.Character.Head.Position)
-        end
-    else
-        Target = nil
-    end
-end)
