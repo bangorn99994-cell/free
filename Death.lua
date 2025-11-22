@@ -1,68 +1,84 @@
--- Services
+-- Gui to Lua
+-- Version: Delta Mobile Optimized
+
 local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
-local UserInputService = game:GetService("UserInputService")
-local TweenService = game:GetService("TweenService")
 local LocalPlayer = Players.LocalPlayer
 local Camera = workspace.CurrentCamera
+local UIS = game:GetService("UserInputService")
 
--- Variables
-local AimbotEnabled = false
+-- ตัวแปรควบคุม
+getgenv().AutoLock = false -- เริ่มต้นปิด
 local Target = nil
 
--- 1. สร้าง GUI (ปุ่มลอย)
+-- 1. สร้างปุ่ม GUI (สำหรับ Delta/Mobile)
 local ScreenGui = Instance.new("ScreenGui")
-local MainButton = Instance.new("TextButton")
+local ToggleBtn = Instance.new("TextButton")
 local UICorner = Instance.new("UICorner")
 local UIStroke = Instance.new("UIStroke")
+local StatusLabel = Instance.new("TextLabel")
 
-ScreenGui.Name = "SimpleAimbotGUI"
-if syn and syn.protect_gui then 
-    syn.protect_gui(ScreenGui) 
-    ScreenGui.Parent = game.CoreGui 
-elseif getgenv and getgenv().gethui then
+ScreenGui.Name = "DeltaAutoLock"
+-- พยายามนำเข้า CoreGui ถ้าไม่ได้ให้ไป PlayerGui
+if getgenv and getgenv().gethui then
     ScreenGui.Parent = getgenv().gethui()
-else
+elseif game.CoreGui:FindFirstChild("RobloxGui") then
     ScreenGui.Parent = game.CoreGui
+else
+    ScreenGui.Parent = LocalPlayer:WaitForChild("PlayerGui")
 end
 
--- ตั้งค่าปุ่ม
-MainButton.Name = "ToggleBtn"
-MainButton.Parent = ScreenGui
-MainButton.BackgroundColor3 = Color3.fromRGB(255, 60, 60) -- สีแดง (ปิดอยู่)
-MainButton.Position = UDim2.new(0.1, 0, 0.2, 0) -- ตำแหน่งเริ่มต้น
-MainButton.Size = UDim2.new(0, 60, 0, 60)
-MainButton.Font = Enum.Font.FredokaOne
-MainButton.Text = "OFF"
-MainButton.TextColor3 = Color3.fromRGB(255, 255, 255)
-MainButton.TextSize = 20.000
-MainButton.Draggable = true -- ทำให้ลากได้ (สำหรับมือถือ)
-MainButton.Active = true
-MainButton.Selectable = true
+ToggleBtn.Name = "ToggleBtn"
+ToggleBtn.Parent = ScreenGui
+ToggleBtn.BackgroundColor3 = Color3.fromRGB(35, 35, 35)
+ToggleBtn.Position = UDim2.new(0.8, -60, 0.3, 0) -- อยู่ขวาบน (ลากได้)
+ToggleBtn.Size = UDim2.new(0, 65, 0, 65)
+ToggleBtn.Font = Enum.Font.GothamBold
+ToggleBtn.Text = "LOCK"
+ToggleBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
+ToggleBtn.TextSize = 16.000
+ToggleBtn.Draggable = true -- ลากได้
+ToggleBtn.Active = true
+ToggleBtn.AutoButtonColor = true
 
-UICorner.CornerRadius = UDim.new(0, 100) -- ทำให้กลม
-UICorner.Parent = MainButton
+UICorner.CornerRadius = UDim.new(0, 16)
+UICorner.Parent = ToggleBtn
 
-UIStroke.Parent = MainButton
-UIStroke.Thickness = 3
+UIStroke.Parent = ToggleBtn
+UIStroke.Thickness = 2
 UIStroke.Color = Color3.fromRGB(255, 255, 255)
+UIStroke.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
 
--- 2. ฟังก์ชันหาหัวคน (Logic)
-local function GetClosestPlayer()
-    local ClosestDist = 99999
+StatusLabel.Parent = ToggleBtn
+StatusLabel.BackgroundColor3 = Color3.fromRGB(255, 0, 4)
+StatusLabel.Position = UDim2.new(0.7, 0, 0.7, 0)
+StatusLabel.Size = UDim2.new(0, 15, 0, 15)
+StatusLabel.Text = ""
+StatusLabel.UICorner = Instance.new("UICorner", StatusLabel)
+StatusLabel.UICorner.CornerRadius = UDim.new(1, 0)
+
+-- 2. ฟังก์ชันหาเป้าหมาย (Closest to Center)
+local function GetClosestEnemy()
+    local ClosestDist = math.huge
     local ClosestTarget = nil
-    local MousePos = UserInputService:GetMouseLocation()
+    
+    -- ใช้จุดกึ่งกลางหน้าจอแทนเมาส์ (เหมาะกับมือถือ)
+    local Center = Vector2.new(Camera.ViewportSize.X / 2, Camera.ViewportSize.Y / 2)
 
     for _, v in pairs(Players:GetPlayers()) do
+        -- เงื่อนไข: ไม่ใช่ตัวเอง, มีตัวละคร, มีหัว, ยังไม่ตาย
         if v ~= LocalPlayer and v.Character and v.Character:FindFirstChild("Head") and v.Character:FindFirstChild("Humanoid") and v.Character.Humanoid.Health > 0 then
-            -- เช็คทีม (ถ้ามีทีมเดียวกันจะไม่ล็อค)
+            
+            -- เช็คทีม (ถ้ามีระบบทีม)
             if v.Team ~= nil and LocalPlayer.Team ~= nil and v.Team == LocalPlayer.Team then
                 continue
             end
 
-            local HeadPos, OnScreen = Camera:WorldToViewportPoint(v.Character.Head.Position)
+            -- เช็คว่าอยู่ในหน้าจอไหม
+            local Vector, OnScreen = Camera:WorldToViewportPoint(v.Character.Head.Position)
+            
             if OnScreen then
-                local Dist = (Vector2.new(HeadPos.X, HeadPos.Y) - MousePos).Magnitude
+                local Dist = (Vector2.new(Vector.X, Vector.Y) - Center).Magnitude
                 if Dist < ClosestDist then
                     ClosestDist = Dist
                     ClosestTarget = v
@@ -70,46 +86,36 @@ local function GetClosestPlayer()
             end
         end
     end
+    
     return ClosestTarget
 end
 
--- 3. การทำงานของปุ่ม (Toggle)
-MainButton.MouseButton1Click:Connect(function()
-    AimbotEnabled = not AimbotEnabled
+-- 3. การทำงานปุ่มกด (Toggle)
+ToggleBtn.MouseButton1Click:Connect(function()
+    getgenv().AutoLock = not getgenv().AutoLock
     
-    if AimbotEnabled then
-        MainButton.Text = "ON"
-        MainButton.BackgroundColor3 = Color3.fromRGB(60, 255, 60) -- สีเขียว
-        
-        -- เล่นเสียงคลิก
-        local Sound = Instance.new("Sound")
-        Sound.Parent = game.SoundService
-        Sound.SoundId = "rbxassetid://12221967"
-        Sound.PlayOnRemove = true
-        Sound:Destroy()
+    if getgenv().AutoLock then
+        StatusLabel.BackgroundColor3 = Color3.fromRGB(0, 255, 0) -- สีเขียว (เปิด)
+        UIStroke.Color = Color3.fromRGB(0, 255, 0)
     else
-        MainButton.Text = "OFF"
-        MainButton.BackgroundColor3 = Color3.fromRGB(255, 60, 60) -- สีแดง
+        StatusLabel.BackgroundColor3 = Color3.fromRGB(255, 0, 4) -- สีแดง (ปิด)
+        UIStroke.Color = Color3.fromRGB(255, 255, 255)
         Target = nil
     end
 end)
 
--- 4. ลูปการทำงาน (RenderStepped)
+-- 4. ลูปการทำงานแบบ 100% Lock (RenderStepped)
 RunService.RenderStepped:Connect(function()
-    if AimbotEnabled then
-        -- หาเป้าหมายใหม่ถ้ายังไม่มี หรือเป้าหมายเก่าตาย
+    if getgenv().AutoLock then
+        -- ถ้าเป้าหมายเดิมตาย หรือ หายไป ให้หาใหม่
         if not Target or not Target.Character or not Target.Character:FindFirstChild("Head") or Target.Character.Humanoid.Health <= 0 then
-            Target = GetClosestPlayer()
+            Target = GetClosestEnemy()
         end
 
-        -- ถ้ามีเป้าหมาย ให้หันกล้องไปหา
         if Target and Target.Character and Target.Character:FindFirstChild("Head") then
-            local HeadPos = Target.Character.Head.Position
-            
-            -- วิธีหันกล้องแบบ Smooth (ไม่กระชากแรงเกินไป)
-            local CurrentCFrame = Camera.CFrame
-            local TargetCFrame = CFrame.new(CurrentCFrame.Position, HeadPos)
-            Camera.CFrame = CurrentCFrame:Lerp(TargetCFrame, 0.2) -- แก้เลข 0.2 เพื่อปรับความไว (0.1 ช้า - 1.0 เร็วสุด)
+            -- *** ส่วนสำคัญ: Hard Lock ***
+            -- ตั้งค่า CFrame ของกล้องไปที่หัวเป้าหมายทันทีโดยไม่มี Lerp
+            Camera.CFrame = CFrame.new(Camera.CFrame.Position, Target.Character.Head.Position)
         end
     else
         Target = nil
@@ -117,8 +123,9 @@ RunService.RenderStepped:Connect(function()
 end)
 
 -- แจ้งเตือน
-game.StarterGui:SetCore("SendNotification", {
-    Title = "Simple Lock";
-    Text = "Script Loaded! Button is on screen.";
+local StarterGui = game:GetService("StarterGui")
+StarterGui:SetCore("SendNotification", {
+    Title = "Delta Lock Loaded";
+    Text = "Button is on screen! Drag to move.";
     Duration = 3;
 })
