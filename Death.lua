@@ -1,8 +1,8 @@
---[[ 
-    DELTA BOX ESP (Mobile Optimized)
-    - สร้างกรอบสี่เหลี่ยมรอบตัวศัตรู
-    - มองทะลุกำแพง (Always On Top)
-    - มีเส้นบอกเลือด (Health Bar)
+--[[
+    DELTA UNIVERSAL ESP (Fixed)
+    - โชว์ทุกคน (แก้ปัญหาแมพที่ไม่มีระบบทีม)
+    - ใช้ได้กับทุกแมพ (R6/R15)
+    - รองรับ Delta Mobile
 ]]
 
 local Players = game:GetService("Players")
@@ -10,16 +10,17 @@ local RunService = game:GetService("RunService")
 local LocalPlayer = Players.LocalPlayer
 local UserInputService = game:GetService("UserInputService")
 
-getgenv().ESP = false
+getgenv().UniversalESP = false
 
--- --- 1. สร้างปุ่ม GUI (แบบเดิมที่ใช้งานได้ดี) ---
+-- --- 1. สร้างปุ่ม GUI (ลากได้) ---
 local ScreenGui = Instance.new("ScreenGui")
 local MainFrame = Instance.new("Frame")
 local ToggleBtn = Instance.new("TextButton")
 local UICorner = Instance.new("UICorner")
 local UIStroke = Instance.new("UIStroke")
 
-ScreenGui.Name = "BoxESPGui"
+ScreenGui.Name = "UniversalESP"
+-- หาที่วาง GUI ที่ปลอดภัยสำหรับ Delta
 if getgenv and getgenv().gethui then
     ScreenGui.Parent = getgenv().gethui()
 elseif game.CoreGui:FindFirstChild("RobloxGui") then
@@ -32,17 +33,17 @@ MainFrame.Name = "MainFrame"
 MainFrame.Parent = ScreenGui
 MainFrame.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
 MainFrame.BackgroundTransparency = 1.000
-MainFrame.Position = UDim2.new(0.8, -20, 0.55, 0) -- อยู่ต่ำลงมาจากปุ่มล็อคเดิมหน่อย
+MainFrame.Position = UDim2.new(0.8, -20, 0.6, 0) 
 MainFrame.Size = UDim2.new(0, 70, 0, 70)
 
 ToggleBtn.Name = "ToggleBtn"
 ToggleBtn.Parent = MainFrame
-ToggleBtn.BackgroundColor3 = Color3.fromRGB(30, 30, 30)
+ToggleBtn.BackgroundColor3 = Color3.fromRGB(20, 20, 20)
 ToggleBtn.Position = UDim2.new(0, 0, 0, 0)
 ToggleBtn.Size = UDim2.new(1, 0, 1, 0)
 ToggleBtn.Font = Enum.Font.GothamBold
-ToggleBtn.Text = "ESP\nBOX"
-ToggleBtn.TextColor3 = Color3.fromRGB(0, 255, 255) -- สีฟ้า
+ToggleBtn.Text = "SEE\nALL"
+ToggleBtn.TextColor3 = Color3.fromRGB(255, 0, 0)
 ToggleBtn.TextSize = 16.000
 ToggleBtn.AutoButtonColor = true
 
@@ -51,7 +52,7 @@ UICorner.Parent = ToggleBtn
 
 UIStroke.Parent = ToggleBtn
 UIStroke.Thickness = 3
-UIStroke.Color = Color3.fromRGB(0, 255, 255)
+UIStroke.Color = Color3.fromRGB(255, 0, 0)
 
 -- ระบบลากปุ่ม
 local dragging, dragInput, dragStart, startPos
@@ -72,118 +73,104 @@ ToggleBtn.InputChanged:Connect(function(input)
 end)
 UserInputService.InputChanged:Connect(function(input) if input == dragInput and dragging then update(input) end end)
 
--- --- 2. ฟังก์ชันสร้าง ESP ---
-local function CreateESP(player)
-    -- เช็คว่ามี ESP เดิมอยู่ไหม ถ้ามีให้ลบออกก่อน
-    if player.Character and player.Character:FindFirstChild("HumanoidRootPart") then
-        if player.Character.HumanoidRootPart:FindFirstChild("BoxESP") then
-            player.Character.HumanoidRootPart.BoxESP:Destroy()
-        end
+-- --- 2. ฟังก์ชันสร้างกล่อง (The Fix) ---
+local function AddBox(player)
+    -- รอให้ตัวละครโหลด
+    if not player.Character then return end
+    
+    -- หาจุดกึ่งกลางตัว (รองรับทั้ง R6 และ R15)
+    local HRP = player.Character:FindFirstChild("HumanoidRootPart") or player.Character:FindFirstChild("Torso")
+    
+    if HRP then
+        -- ลบอันเก่าทิ้งก่อนกันซ้อน
+        if HRP:FindFirstChild("UniversalBox") then HRP.UniversalBox:Destroy() end
 
-        -- สร้าง BillboardGui (ตัวป้ายที่ลอยเหนือหัว)
-        local espBox = Instance.new("BillboardGui")
-        espBox.Name = "BoxESP"
-        espBox.Adornee = player.Character.HumanoidRootPart
-        espBox.Size = UDim2.new(4, 0, 5.5, 0) -- ขนาดกรอบ (กว้าง x สูง)
-        espBox.AlwaysOnTop = true -- **หัวใจสำคัญ: ทำให้มองทะลุกำแพง**
-        espBox.Parent = player.Character.HumanoidRootPart
+        local BillGui = Instance.new("BillboardGui")
+        BillGui.Name = "UniversalBox"
+        BillGui.Adornee = HRP
+        BillGui.Size = UDim2.new(4, 0, 5.5, 0)
+        BillGui.AlwaysOnTop = true -- **มองทะลุกำแพง**
+        BillGui.Parent = HRP
 
-        -- สร้างกรอบสี่เหลี่ยม (Frame)
-        local border = Instance.new("Frame")
-        border.Size = UDim2.new(1, 0, 1, 0)
-        border.Position = UDim2.new(0, 0, 0, -0.5) -- จัดตำแหน่งให้พอดีตัว
-        border.BackgroundTransparency = 1 -- พื้นหลังใส
-        border.BorderColor3 = Color3.fromRGB(255, 0, 0) -- สีเส้น (แดง)
-        border.BorderSizePixel = 2 -- ความหนาเส้น
-        border.Parent = espBox
-
-        -- (แถม) หลอดเลือด
-        local hpBar = Instance.new("Frame")
-        hpBar.Size = UDim2.new(0.05, 0, 1, 0) -- หลอดแนวตั้ง
-        hpBar.Position = UDim2.new(-0.1, 0, 0, -0.5)
-        hpBar.BackgroundColor3 = Color3.fromRGB(0, 255, 0) -- สีเขียว
-        hpBar.BorderSizePixel = 0
-        hpBar.Parent = espBox
+        local BoxFrame = Instance.new("Frame")
+        BoxFrame.Size = UDim2.new(1, 0, 1, 0)
+        BoxFrame.BackgroundTransparency = 1
+        BoxFrame.BorderColor3 = Color3.fromRGB(255, 0, 0) -- สีแดง
+        BoxFrame.BorderSizePixel = 2
+        BoxFrame.Parent = BillGui
         
-        -- อัปเดตหลอดเลือดเรื่อยๆ
-        task.spawn(function()
-            while player.Character and player.Character:FindFirstChild("Humanoid") and espBox.Parent do
-                local hum = player.Character.Humanoid
-                hpBar.Size = UDim2.new(0.05, 0, (hum.Health / hum.MaxHealth), 0)
-                hpBar.Position = UDim2.new(-0.1, 0, (1 - (hum.Health / hum.MaxHealth)) - 0.5, 0)
-                
-                -- เปลี่ยนสีตามเลือด
-                if hum.Health < 30 then
-                    hpBar.BackgroundColor3 = Color3.fromRGB(255, 0, 0)
-                else
-                    hpBar.BackgroundColor3 = Color3.fromRGB(0, 255, 0)
-                end
-                task.wait(0.1)
-            end
-        end)
+        -- เพิ่มชื่อ (Name Tag) เพื่อความชัวร์ว่าเห็น
+        local NameTag = Instance.new("TextLabel")
+        NameTag.Parent = BillGui
+        NameTag.Position = UDim2.new(0, 0, -0.2, 0)
+        NameTag.Size = UDim2.new(1, 0, 0.2, 0)
+        NameTag.BackgroundTransparency = 1
+        NameTag.Text = player.Name
+        NameTag.TextColor3 = Color3.fromRGB(255, 255, 255)
+        NameTag.TextStrokeTransparency = 0
+        NameTag.TextSize = 10
     end
 end
 
-local function RemoveESP(player)
-    if player.Character and player.Character:FindFirstChild("HumanoidRootPart") and player.Character.HumanoidRootPart:FindFirstChild("BoxESP") then
-        player.Character.HumanoidRootPart.BoxESP:Destroy()
+local function RemoveBox(player)
+    if player.Character then
+        local HRP = player.Character:FindFirstChild("HumanoidRootPart") or player.Character:FindFirstChild("Torso")
+        if HRP and HRP:FindFirstChild("UniversalBox") then
+            HRP.UniversalBox:Destroy()
+        end
     end
 end
 
--- --- 3. ระบบควบคุมหลัก ---
-
--- ปุ่มเปิด/ปิด
+-- --- 3. ระบบทำงาน ---
 ToggleBtn.Activated:Connect(function()
     if dragging and (UserInputService:GetMouseLocation() - Vector2.new(dragStart.X, dragStart.Y)).Magnitude > 10 then return end
 
-    getgenv().ESP = not getgenv().ESP
+    getgenv().UniversalESP = not getgenv().UniversalESP
     
-    if getgenv().ESP then
+    if getgenv().UniversalESP then
         ToggleBtn.Text = "ON"
         ToggleBtn.BackgroundColor3 = Color3.fromRGB(0, 255, 0)
         ToggleBtn.TextColor3 = Color3.fromRGB(0, 0, 0)
         
-        -- เริ่มทำงานทันที
+        -- Loop ใส่ทุกคน (ยกเว้นตัวเอง)
         for _, v in pairs(Players:GetPlayers()) do
-            if v ~= LocalPlayer and v.Team ~= LocalPlayer.Team then
-                CreateESP(v)
+            if v ~= LocalPlayer then
+                AddBox(v)
             end
         end
     else
-        ToggleBtn.Text = "ESP\nBOX"
-        ToggleBtn.BackgroundColor3 = Color3.fromRGB(30, 30, 30)
-        ToggleBtn.TextColor3 = Color3.fromRGB(0, 255, 255)
+        ToggleBtn.Text = "SEE\nALL"
+        ToggleBtn.BackgroundColor3 = Color3.fromRGB(20, 20, 20)
+        ToggleBtn.TextColor3 = Color3.fromRGB(255, 0, 0)
         
-        -- ลบออกทันที
         for _, v in pairs(Players:GetPlayers()) do
-            RemoveESP(v)
+            RemoveBox(v)
         end
     end
 end)
 
--- อัปเดตเมื่อมีคนเกิดใหม่ หรือคนเข้าเกม
-Players.PlayerAdded:Connect(function(player)
-    player.CharacterAdded:Connect(function()
-        if getgenv().ESP and player.Team ~= LocalPlayer.Team then
-            task.wait(1) -- รอโหลดตัวแปปนึง
-            CreateESP(player)
+-- ออโต้โหลดเมื่อมีคนเกิดใหม่
+Players.PlayerAdded:Connect(function(v)
+    v.CharacterAdded:Connect(function()
+        if getgenv().UniversalESP and v ~= LocalPlayer then
+            task.wait(1)
+            AddBox(v)
         end
     end)
 end)
 
-for _, player in pairs(Players:GetPlayers()) do
-    player.CharacterAdded:Connect(function()
-        if getgenv().ESP and player.Team ~= LocalPlayer.Team then
+-- โหลดใส่คนที่อยู่ในเกมแล้วเมื่อตายแล้วเกิดใหม่
+for _, v in pairs(Players:GetPlayers()) do
+    v.CharacterAdded:Connect(function()
+        if getgenv().UniversalESP and v ~= LocalPlayer then
             task.wait(1)
-            CreateESP(player)
+            AddBox(v)
         end
     end)
 end
 
--- แจ้งเตือน
 game.StarterGui:SetCore("SendNotification", {
-    Title = "Box ESP Loaded";
-    Text = "Tap button to see through walls!";
-    Duration = 3;
+    Title = "Universal ESP Fixed";
+    Text = "Now shows ALL players (No Team Check)";
+    Duration = 5;
 })
-
