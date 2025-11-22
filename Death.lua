@@ -1,42 +1,44 @@
 --[[
-    DELTA WAR HACK (AIMBOT / AIM LOCK)
-    - โค้ดล็อคหัวไปยังศัตรูที่ใกล้ที่สุด
-    - ใช้ pcall + Heartbeat Loop เพื่อความเสถียร
-    - สามารถปรับระยะการล็อคได้ (Max Distance)
+    DELTA SILENT AIMBOT (Generic RemoteEvent Hook)
+    - ใช้เทคนิคการดักจับ RemoteEvent เพื่อเล็งเงียบ
+    - ไม่ต้องขยับกล้อง
+    - ใช้ pcall + HookFunction เพื่อความเสถียร
 ]]
 
 local Players = game:GetService("Players")
-local RunService = game:GetService("RunService")
 local LocalPlayer = Players.LocalPlayer
-local Camera = workspace.CurrentCamera
+local Workspace = game:GetService("Workspace")
 
-getgenv().AIMBOT_ACTIVE = false
-local MAX_DISTANCE = 300 -- ระยะสูงสุดที่ Aimbot จะล็อคเป้า (หน่วย Studs)
+getgenv().SILENT_AIM_ACTIVE = false
+local MAX_DISTANCE = 300 -- ระยะสูงสุดที่ Aimbot จะเล็ง
 
--- --- 1. SIMPLE GUI TOGGLE (ปุ่มเปิด/ปิด Aimbot) ---
+-- **นี่คือชื่อ RemoteEvent ที่ต้องแก้ไขตามเกมที่คุณเล่น!**
+-- ตัวอย่างนี้ใช้ชื่อที่พบบ่อย แต่คุณอาจต้องเปลี่ยนเอง (เช่น "Shoot", "DamageEvent", "Fire")
+local FIRE_REMOTE_NAME = "FireBullet" 
+
+-- --- 1. SIMPLE GUI TOGGLE ---
 local ScreenGui = Instance.new("ScreenGui")
 local ToggleBtn = Instance.new("TextButton")
 
-ScreenGui.Name = "AimbotToggle"
+ScreenGui.Name = "SilentAimbotToggle"
 if getgenv and getgenv().gethui then
     ScreenGui.Parent = getgenv().gethui()
 else
     ScreenGui.Parent = LocalPlayer:WaitForChild("PlayerGui")
 end
 
-ToggleBtn.Name = "ToggleAimbot"
+ToggleBtn.Name = "ToggleSilentAim"
 ToggleBtn.Parent = ScreenGui
 ToggleBtn.Size = UDim2.new(0, 150, 0, 50)
 ToggleBtn.Position = UDim2.new(0.01, 0, 0.85, 0) 
 ToggleBtn.BackgroundColor3 = Color3.fromRGB(255, 0, 0)
 ToggleBtn.Font = Enum.Font.GothamBold
-ToggleBtn.Text = "AIMBOT OFF"
+ToggleBtn.Text = "SILENT AIM OFF"
 ToggleBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
 ToggleBtn.TextSize = 18
 
 -- --- 2. CORE AIMBOT LOGIC ---
 
--- ฟังก์ชันหาเป้าหมายที่ดีที่สุด (ใกล้ที่สุด)
 local function GetTarget()
     local BestTarget = nil
     local ClosestDistance = MAX_DISTANCE
@@ -49,7 +51,6 @@ local function GetTarget()
             local TargetPart = player.Character:FindFirstChild("Head") or player.Character:FindFirstChild("HumanoidRootPart")
             if TargetPart then
                 local Distance = (MyHRP.Position - TargetPart.Position).Magnitude
-                
                 if Distance < ClosestDistance then
                     ClosestDistance = Distance
                     BestTarget = TargetPart
@@ -60,47 +61,81 @@ local function GetTarget()
     return BestTarget
 end
 
--- ลูปหลัก Aimbot
-local function AimbotLoop()
-    while getgenv().AIMBOT_ACTIVE do
-        pcall(function()
-            local Target = GetTarget()
+local OriginalFireRemote = nil -- ใช้เก็บ RemoteEvent เดิมก่อน Hook
+
+-- ฟังก์ชันที่ใช้ดักจับ RemoteEvent
+local function SilentAimHook(remote, ...)
+    pcall(function()
+        if getgenv().SILENT_AIM_ACTIVE then
+            local TargetPart = GetTarget()
             
-            if Target then
-                local TargetPos = Target.Position
-                local CameraCFrame = Camera.CFrame
+            if TargetPart and getgenv().AIMBOT_ACTIVE then
+                local HeadPosition = TargetPart.Position
+                local MyPosition = LocalPlayer.Character.HumanoidRootPart.Position
                 
-                -- คำนวณ CFrame ใหม่เพื่อล็อคหัว
-                local NewCFrame = CFrame.new(CameraCFrame.p, TargetPos)
+                local Direction = (HeadPosition - MyPosition).Unit -- ทิศทางใหม่ที่เจาะจงไปที่หัว
                 
-                -- ล็อคกล้อง
-                Camera.CFrame = NewCFrame
+                -- **นี่คือการปลอมแปลง (Spoofing) ข้อมูลการยิง**
+                -- การยิงส่วนใหญ่ส่งพิกัดการเล็ง (LookVector) เป็นอาร์กิวเมนต์ตัวแรก/ตัวที่สอง
+                local Args = {...}
+                
+                -- พยายามแทนที่อาร์กิวเมนต์ที่ 1 ด้วยทิศทางใหม่ (สมมติว่าเป็น LookVector)
+                if Args[1] and typeof(Args[1]) == "Vector3" then
+                    Args[1] = Direction 
+                -- หรือถ้ามันส่งเป็น RaycastOrigin/Direction (ตามรูปแบบการยิงสมัยใหม่)
+                elseif Args[2] and typeof(Args[2]) == "Vector3" then
+                     Args[2] = Direction
+                end
+                
+                -- ส่งข้อมูลที่ถูกปลอมแปลงแล้วไปยังเซิร์ฟเวอร์
+                return OriginalFireRemote(remote, table.unpack(Args))
             end
-        end)
-        
-        -- ใช้ Heartbeat เพื่อให้ล็อคหัวได้อย่างรวดเร็วและแม่นยำสูงสุด
-        RunService.Heartbeat:Wait()
-    end
+        end
+    end)
+    
+    -- ถ้าไม่มีการล็อคเป้าหมาย หรือปิด Aimbot อยู่ ให้รันคำสั่งเดิมตามปกติ
+    return OriginalFireRemote(remote, ...)
 end
 
 -- --- 3. TOGGLE LOGIC ---
 ToggleBtn.Activated:Connect(function()
-    getgenv().AIMBOT_ACTIVE = not getgenv().AIMBOT_ACTIVE
+    getgenv().SILENT_AIM_ACTIVE = not getgenv().SILENT_AIM_ACTIVE
     
-    if getgenv().AIMBOT_ACTIVE then
-        ToggleBtn.Text = "AIMBOT ON"
+    if getgenv().SILENT_AIM_ACTIVE then
+        ToggleBtn.Text = "SILENT AIM ON"
         ToggleBtn.BackgroundColor3 = Color3.fromRGB(0, 255, 0)
-        
-        -- เริ่มต้น Aimbot Loop ด้วย coroutine.wrap ทันที
-        coroutine.wrap(AimbotLoop)()
+
+        -- **การค้นหา RemoteEvent และ Hooking**
+        local Remote
+        pcall(function()
+            -- ค้นหา RemoteEvent ใน RepilicatedStorage หรือที่อื่น ๆ ที่พบบ่อย
+            Remote = game:GetService("ReplicatedStorage"):FindFirstChild(FIRE_REMOTE_NAME, true)
+            if not Remote then 
+                 Remote = Workspace:FindFirstChild(FIRE_REMOTE_NAME, true) 
+            end
+        end)
+
+        if Remote and getgenv().hookfunction then
+            game.StarterGui:SetCore("SendNotification", {Text = "RemoteEvent Found. Hooking...", Duration = 3;})
+            OriginalFireRemote = getgenv().hookfunction(Remote.FireServer, SilentAimHook)
+        else
+            game.StarterGui:SetCore("SendNotification", {Text = "ERROR: RemoteEvent ไม่พบ! ต้องแก้ไขชื่อ RemoteEvent.", Duration = 5;})
+            getgenv().SILENT_AIM_ACTIVE = false
+            ToggleBtn.Text = "FIX REQUIRED"
+            ToggleBtn.BackgroundColor3 = Color3.fromRGB(255, 165, 0)
+        end
     else
-        ToggleBtn.Text = "AIMBOT OFF"
+        ToggleBtn.Text = "SILENT AIM OFF"
         ToggleBtn.BackgroundColor3 = Color3.fromRGB(255, 0, 0)
+        
+        -- ต้องทำการ Unhook เมื่อปิด Aimbot (แต่ทำได้ยากในโค้ดทั่วไป)
+        -- ในกรณีนี้จะปล่อยให้ hook อยู่ แต่ปิดการทำงานในฟังก์ชัน SilentAimHook
     end
 end)
 
 game.StarterGui:SetCore("SendNotification", {
-    Title = "Aimbot Loaded";
-    Text = "Aimbot พร้อมใช้งานแล้ว (ระยะล็อค " .. MAX_DISTANCE .. " Studs).";
+    Title = "Silent Aimbot Loaded";
+    Text = "นี่คือการเจาะระบบการยิงโดยตรง กรุณาลองทดสอบการยิง!";
     Duration = 5;
 })
+
