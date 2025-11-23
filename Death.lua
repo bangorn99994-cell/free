@@ -1,36 +1,60 @@
 --[[
-    FINAL AIMBOT (AUTO-INJECT - NO GUI)
-    - โค้ดจะเริ่มทำงานทันทีที่รัน
-    - ใช้ pcall + Heartbeat เพื่อความเสถียรสูงสุด
-    - ใช้ CameraType.Scriptable และ Lerp เพื่อหลีกเลี่ยง Anti-Cheat Camera Check
+    FINAL SILENT AIMBOT (3-in-1 REMOTE BYPASS)
+    - โค้ดจะลองดักจับ RemoteEvent 3 ชื่อที่พบบ่อยที่สุดในการยิงปืน
+    - ใช้ Anti-Kick Logic เพื่อลดโอกาสถูกเตะออก
+    - ใช้ pcall เพื่อความเสถียร
 ]]
 
 local Players = game:GetService("Players")
-local RunService = game:GetService("RunService")
 local LocalPlayer = Players.LocalPlayer
 local Camera = workspace.CurrentCamera
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local Workspace = game:GetService("Workspace")
 
-local AIMBOT_ACTIVE = true -- เปิดใช้งานทันที
-local MAX_DISTANCE = 350 -- เพิ่มระยะเล็กน้อย
-local AIMBOT_SMOOTH = 0.3 -- ล็อคเร็วขึ้น (ลดค่าจาก 0.5)
+getgenv().AIMBOT_ACTIVE = false
+local MAX_DISTANCE = 350 
 
--- --- CORE AIMBOT LOGIC ---
+-- 🔥🔥🔥 3 ชื่อ RemoteEvent ที่พบบ่อยที่สุด 🔥🔥🔥
+local FIRE_REMOTE_NAMES = {
+    "FireGun",    -- ชื่อที่ตรงไปตรงมา
+    "DamageEvent",-- ชื่อที่เน้นการส่งค่าความเสียหาย
+    "WeaponRemote"-- ชื่อที่ถูกใช้ในแพลตฟอร์มปืนสำเร็จรูป
+}
+
+-- --- 1. SIMPLE GUI TOGGLE (โค้ด GUI ที่เรียบง่ายที่สุด) ---
+local ScreenGui = Instance.new("ScreenGui")
+local ToggleBtn = Instance.new("TextButton")
+ScreenGui.Name = "FinalAimbotGUI"
+
+if getgenv and getgenv().gethui then
+    ScreenGui.Parent = getgenv().gethui()
+else
+    ScreenGui.Parent = LocalPlayer:WaitForChild("PlayerGui")
+end
+
+ToggleBtn.Name = "ToggleAimbot"
+ToggleBtn.Parent = ScreenGui
+ToggleBtn.Size = UDim2.new(0, 150, 0, 50)
+ToggleBtn.Position = UDim2.new(0.01, 0, 0.85, 0) 
+ToggleBtn.BackgroundColor3 = Color3.fromRGB(255, 0, 0)
+ToggleBtn.Font = Enum.Font.GothamBold
+ToggleBtn.Text = "AIMBOT OFF"
+ToggleBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
+ToggleBtn.TextSize = 18
+
+-- --- 2. CORE AIMBOT LOGIC ---
 
 local function GetTarget()
     local BestTarget = nil
     local ClosestDistance = MAX_DISTANCE
     local MyHRP = LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("HumanoidRootPart")
-    
     if not MyHRP then return nil end
 
     for _, player in pairs(Players:GetPlayers()) do
-        -- ตรวจสอบ Team/Health
         if player ~= LocalPlayer and player.Character and player.Character.Humanoid.Health > 0 and (player.Team == nil or player.Team ~= LocalPlayer.Team) then
-            -- เล็งไปที่ศีรษะ (Head)
             local TargetPart = player.Character:FindFirstChild("Head") or player.Character:FindFirstChild("HumanoidRootPart")
             if TargetPart then
                 local Distance = (MyHRP.Position - TargetPart.Position).Magnitude
-                
                 if Distance < ClosestDistance then
                     ClosestDistance = Distance
                     BestTarget = TargetPart
@@ -41,47 +65,79 @@ local function GetTarget()
     return BestTarget
 end
 
--- ลูปหลัก Aimbot (ใช้ Coroutine และ pcall)
-local function AimbotLoop()
-    -- ใช้ pcall ครอบทั้ง Coroutine เพื่อความเสถียรสูงสุด
+local OriginalFireRemotes = {} -- ใช้เก็บ Original Hook Functions
+
+-- ฟังก์ชันดักจับ (Hook) ที่เน้นความปลอดภัย
+local function SilentAimHook(remote, ...)
     pcall(function()
-        while AIMBOT_ACTIVE do
-            local Target = GetTarget()
+        if getgenv().AIMBOT_ACTIVE then
+            local TargetPart = GetTarget()
             
-            pcall(function()
-                if Target then
-                    local TargetPos = Target.Position
-                    
-                    -- เทคนิค BYPASS: ตั้งค่ากล้องเป็น Scriptable ก่อน
-                    Camera.CameraType = Enum.CameraType.Scriptable
-                    
-                    local TargetCFrame = CFrame.new(Camera.CFrame.p, TargetPos)
-                    
-                    -- ใช้ Lerp เพื่อการล็อคที่นุ่มนวลและป้องกันการ Revert
-                    Camera.CFrame = Camera.CFrame:Lerp(TargetCFrame, AIMBOT_SMOOTH)
-                    
-                    -- คืนค่ากล้องเป็น Custom หลังจบเฟรม
-                    Camera.CameraType = Enum.CameraType.Custom
-                else
-                    -- ถ้าไม่มีเป้าหมาย ให้คืนค่ากล้องปกติ
-                    Camera.CameraType = Enum.CameraType.Custom
+            if TargetPart then
+                local HeadPosition = TargetPart.Position
+                -- คำนวณทิศทางใหม่โดยใช้ตำแหน่งกล้องเป็นจุดกำเนิด
+                local Direction = (HeadPosition - Camera.CFrame.Position).Unit 
+
+                local Args = {...}
+                
+                -- ANTI-KICK LOGIC: ปลอมแปลงเฉพาะค่า Vector3 ที่เป็น LookVector
+                for i, arg in ipairs(Args) do
+                    if typeof(arg) == "Vector3" then
+                        -- แทนที่ Vector3 แรกด้วยทิศทางใหม่
+                        Args[i] = Direction
+                        break 
+                    end
                 end
-            end)
-            
-            -- ใช้ Heartbeat เพื่อให้ล็อคหัวได้อย่างรวดเร็ว
-            RunService.Heartbeat:Wait()
+                
+                -- ส่งข้อมูลที่ถูกปลอมแปลงแล้วไปยังเซิร์ฟเวอร์โดยใช้ Original Hook Function
+                local originalFunc = OriginalFireRemotes[remote.Name]
+                if originalFunc then
+                    return originalFunc(remote, table.unpack(Args))
+                end
+            end
         end
     end)
-    -- มั่นใจว่ากล้องกลับสู่โหมด Custom เมื่อโค้ดหยุด
-    pcall(function() Camera.CameraType = Enum.CameraType.Custom end)
+    
+    -- ถ้าการปลอมแปลงล้มเหลว หรือ Aimbot ปิดอยู่ ให้รันคำสั่งเดิม
+    local originalFunc = OriginalFireRemotes[remote.Name]
+    if originalFunc then
+        return originalFunc(remote, ...)
+    end
 end
 
--- --- INITIALIZATION (เริ่มต้นทันที) ---
--- โค้ดจะถูกรันใน Coroutine ใหม่ทันทีที่ Executor รันสคริปต์นี้
-coroutine.wrap(AimbotLoop)()
+-- --- 3. TOGGLE LOGIC ---
+ToggleBtn.Activated:Connect(function()
+    getgenv().AIMBOT_ACTIVE = not getgenv().AIMBOT_ACTIVE
+    
+    if getgenv().AIMBOT_ACTIVE then
+        ToggleBtn.Text = "AIMBOT ON"
+        ToggleBtn.BackgroundColor3 = Color3.fromRGB(0, 255, 0)
 
-game.StarterGui:SetCore("SendNotification", {
-    Title = "Aimbot Auto-Inject Loaded";
-    Text = "Aimbot ทำงานทันทีที่รันโค้ด (ไม่มีเมนู).";
-    Duration = 5;
-})
+        local hookSuccess = false
+        -- พยายาม Hook RemoteEvents ทั้ง 3 ชื่อ
+        for _, name in ipairs(FIRE_REMOTE_NAMES) do
+            pcall(function()
+                local Remote = ReplicatedStorage:FindFirstChild(name, true) or Workspace:FindFirstChild(name, true)
+                
+                if Remote and getgenv().hookfunction then
+                    -- ทำการ Hook และเก็บ Original Function ไว้
+                    OriginalFireRemotes[name] = getgenv().hookfunction(Remote.FireServer, SilentAimHook)
+                    hookSuccess = true
+                    print("Hooked: " .. name)
+                end
+            end)
+        end
+
+        if hookSuccess then
+            game.StarterGui:SetCore("SendNotification", {Title = "Silent Aimbot Hooked"; Text = "ลองยิงปืน! Aimbot กำลังดักจับ 3 RemoteEvents ที่พบบ่อย.", Duration = 4;})
+        else
+            game.StarterGui:SetCore("SendNotification", {Title = "ERROR"; Text = "ไม่พบ RemoteEvent ที่ตรงกัน! คุณต้องใช้ Remote Spy เพื่อหาชื่อที่ถูกต้อง.", Duration = 5;})
+            getgenv().AIMBOT_ACTIVE = false
+            ToggleBtn.Text = "FIX REQUIRED"
+            ToggleBtn.BackgroundColor3 = Color3.fromRGB(255, 165, 0)
+        end
+    else
+        ToggleBtn.Text = "AIMBOT OFF"
+        ToggleBtn.BackgroundColor3 = Color3.fromRGB(255, 0, 0)
+    end
+end)
