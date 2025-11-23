@@ -13,9 +13,9 @@ ScreenGui.Name = "ToolPanelGui"
 ScreenGui.Parent = LocalPlayer:WaitForChild("PlayerGui")
 
 local ScrollingFrame = Instance.new("ScrollingFrame")
-ScrollingFrame.Size = UDim2.new(0,220,0,250)
+ScrollingFrame.Size = UDim2.new(0,220,0,300)
 ScrollingFrame.Position = UDim2.new(0,10,0.7,0)
-ScrollingFrame.CanvasSize = UDim2.new(0,0,0,600)
+ScrollingFrame.CanvasSize = UDim2.new(0,0,0,800)
 ScrollingFrame.ScrollBarThickness = 8
 ScrollingFrame.BackgroundColor3 = Color3.fromRGB(40,40,40)
 ScrollingFrame.Parent = ScreenGui
@@ -88,12 +88,26 @@ TeleportButton.MouseButton1Click:Connect(function()
     HRP.CFrame = CFrame.new(10,5,10)
 end)
 
--- ปุ่ม Speed Hack
-local SpeedButton = makeButton("Set Speed to 500")
+-- ปุ่ม Speed Hack (ปรับเองได้)
+local SpeedButton = makeButton("Set Speed")
 SpeedButton.MouseButton1Click:Connect(function()
-    Humanoid.WalkSpeed = 500
-    SpeedButton.Text = "Speed = 500"
+    local newSpeed = tonumber(game:GetService("Players").LocalPlayer:WaitForChild("PlayerGui"):WaitForChild("ToolPanelGui"):WaitForChild("ScrollSpeedValue").Text) or 16
+    if newSpeed > 500 then newSpeed = 500 end
+    Humanoid.WalkSpeed = newSpeed
+    SpeedButton.Text = "Speed = "..newSpeed
 end)
+
+-- ช่องกรอกค่า Speed
+local SpeedBox = Instance.new("TextBox")
+SpeedBox.Name = "ScrollSpeedValue"
+SpeedBox.Size = UDim2.new(1, -12, 0, 40)
+SpeedBox.Text = "16"
+SpeedBox.Font = Enum.Font.SourceSansBold
+SpeedBox.TextSize = 18
+SpeedBox.TextColor3 = Color3.new(1,1,1)
+SpeedBox.BackgroundColor3 = Color3.fromRGB(80,80,80)
+SpeedBox.BorderSizePixel = 0
+SpeedBox.Parent = ScrollingFrame
 
 -- อัปเดต ESP ทุกเฟรม
 RunService.RenderStepped:Connect(function()
