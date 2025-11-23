@@ -1,87 +1,100 @@
 -- Services
 local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
-local UserInputService = game:GetService("UserInputService")
 
 local LocalPlayer = Players.LocalPlayer
-local Character = LocalPlayer.Character or LocalPlayer.CharacterAdded:Wait()
-local HRP = Character:WaitForChild("HumanoidRootPart")
-local Humanoid = Character:WaitForChild("Humanoid")
 
--- ตัวแปรควบคุม
-local flying = false
-local speed = 50
-local direction = Vector3.new(0,0,0)
-
--- สร้าง GUI
-local ScreenGui = Instance.new("ScreenGui")
-ScreenGui.Parent = LocalPlayer:WaitForChild("PlayerGui")
-
-local FlyButton = Instance.new("TextButton")
-FlyButton.Size = UDim2.new(0,150,0,50)
-FlyButton.Position = UDim2.new(0.5,-75,0.8,0)
-FlyButton.Text = "Toggle Fly"
-FlyButton.BackgroundColor3 = Color3.fromRGB(0,170,255)
-FlyButton.TextColor3 = Color3.new(1,1,1)
-FlyButton.Font = Enum.Font.SourceSansBold
-FlyButton.TextSize = 24
-FlyButton.Parent = ScreenGui
-
--- ฟังก์ชันเปิด/ปิดบิน
-local function startFlying()
-    flying = true
-    Humanoid.PlatformStand = true
-    FlyButton.Text = "Stop Fly"
-    FlyButton.BackgroundColor3 = Color3.fromRGB(255,100,100)
+-- ฟังก์ชันสร้าง Highlight
+local function createHighlight(character)
+    if character:FindFirstChild("Highlight") then return end
+    local highlight = Instance.new("Highlight")
+    highlight.FillColor = Color3.fromRGB(255, 255, 255)
+    highlight.OutlineColor = Color3.fromRGB(0, 0, 0)
+    highlight.FillTransparency = 0.5
+    highlight.OutlineTransparency = 0
+    highlight.Parent = character
 end
 
-local function stopFlying()
-    flying = false
-    Humanoid.PlatformStand = false
-    HRP.Velocity = Vector3.new(0,0,0)
-    FlyButton.Text = "Toggle Fly"
-    FlyButton.BackgroundColor3 = Color3.fromRGB(0,170,255)
+-- ลงทะเบียนผู้เล่น
+local function registerPlayer(player)
+    player.CharacterAdded:Connect(function(character)
+        character:WaitForChild("HumanoidRootPart")
+        createHighlight(character)
+    end)
+    if player.Character then
+        createHighlight(player.Character)
+    end
 end
 
--- กดปุ่มบนมือถือ
-FlyButton.MouseButton1Click:Connect(function()
-    if flying then
-        stopFlying()
-    else
-        startFlying()
+-- ลงทะเบียนผู้เล่นทั้งหมด
+for _, player in pairs(Players:GetPlayers()) do
+    if player ~= LocalPlayer then
+        registerPlayer(player)
+    end
+end
+
+Players.PlayerAdded:Connect(function(player)
+    if player ~= LocalPlayer then
+        registerPlayer(player)
     end
 end)
 
--- อัปเดตการบินทุกเฟรม
-RunService.RenderStepped:Connect(function()
-    if flying then
-        direction = Vector3.new(0,0,0)
+-- GUI Panel
+local ScreenGui = Instance.new("ScreenGui")
+ScreenGui.Parent = LocalPlayer:WaitForChild("PlayerGui")
 
-        -- ควบคุมด้วยปุ่ม WASD (ถ้าเล่นบน PC)
-        if UserInputService:IsKeyDown(Enum.KeyCode.W) then
-            direction = direction + workspace.CurrentCamera.CFrame.LookVector
-        end
-        if UserInputService:IsKeyDown(Enum.KeyCode.S) then
-            direction = direction - workspace.CurrentCamera.CFrame.LookVector
-        end
-        if UserInputService:IsKeyDown(Enum.KeyCode.A) then
-            direction = direction - workspace.CurrentCamera.CFrame.RightVector
-        end
-        if UserInputService:IsKeyDown(Enum.KeyCode.D) then
-            direction = direction + workspace.CurrentCamera.CFrame.RightVector
-        end
-        if UserInputService:IsKeyDown(Enum.KeyCode.Space) then
-            direction = direction + Vector3.new(0,1,0)
-        end
-        if UserInputService:IsKeyDown(Enum.KeyCode.LeftShift) then
-            direction = direction + Vector3.new(0,-1,0)
-        end
+local colors = {
+    {name="Red", color=Color3.fromRGB(255,0,0)},
+    {name="Blue", color=Color3.fromRGB(0,0,255)},
+    {name="Yellow", color=Color3.fromRGB(255,255,0)},
+    {name="Rainbow", color=nil} -- Rainbow จะเปลี่ยนสีเอง
+}
 
-        -- บังคับความเร็ว
-        if direction.Magnitude > 0 then
-            HRP.Velocity = direction.Unit * speed
-        else
-            HRP.Velocity = Vector3.new(0,0,0)
+local selectedMode = "Red"
+local rainbowHue = 0
+
+for i, data in ipairs(colors) do
+    local button = Instance.new("TextButton")
+    button.Size = UDim2.new(0,120,0,40)
+    button.Position = UDim2.new(0,10,0,(i-1)*50+10)
+    button.Text = data.name
+    button.BackgroundColor3 = data.color or Color3.fromRGB(200,200,200)
+    button.TextColor3 = Color3.new(1,1,1)
+    button.Font = Enum.Font.SourceSansBold
+    button.TextSize = 20
+    button.Parent = ScreenGui
+
+    button.MouseButton1Click:Connect(function()
+        selectedMode = data.name
+    end)
+end
+
+-- อัปเดตทุกเฟรม
+RunService.RenderStepped:Connect(function(delta)
+    for _, player in pairs(Players:GetPlayers()) do
+        if player ~= LocalPlayer and player.Character and player.Character:FindFirstChild("Humanoid") then
+            local humanoid = player.Character.Humanoid
+            local highlight = player.Character:FindFirstChild("Highlight")
+
+            if highlight then
+                if selectedMode == "Rainbow" then
+                    rainbowHue = (rainbowHue + delta*0.5) % 1
+                    highlight.FillColor = Color3.fromHSV(rainbowHue,1,1)
+                else
+                    for _, data in ipairs(colors) do
+                        if data.name == selectedMode and data.color then
+                            highlight.FillColor = data.color
+                        end
+                    end
+                end
+
+                -- ถ้าวิ่ง → ทำให้เรืองแสงชัดขึ้น
+                if humanoid.MoveDirection.Magnitude > 0 then
+                    highlight.FillTransparency = 0.2
+                else
+                    highlight.FillTransparency = 0.5
+                end
+            end
         end
     end
 end)
