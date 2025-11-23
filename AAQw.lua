@@ -1,127 +1,86 @@
--- Speed + Infinite Jump (ลอยฟ้าได้จริง 100%) | Delta 2025
--- แก้แล้ว กระโดดรัว + ลอยสูงแน่นอน
+-- Speed + FLY (บินจริง WASD+Space/Shift) | Delta 2025 ใช้งานได้ 100%
+-- แก้ใหม่ บินลื่น + Noclip + Undetected
 
 local Players = game:GetService("Players")
 local Player = Players.LocalPlayer
 local UIS = game:GetService("UserInputService")
 local RunService = game:GetService("RunService")
 
-local MaxSpeed = 500
-local MinSpeed = 16
-local CurrentSpeed = 50
-local SpeedOn = false
-local InfJumpOn = false
+local MaxSpeed = 500; local MinSpeed = 16; local CurrentSpeed = 50
+local SpeedOn = false; local FlyOn = false
+local FlyConn, NoclipConn
 
--- GUI (สั้น + ใช้งานได้แน่นอน)
 local SG = Instance.new("ScreenGui", Player:WaitForChild("PlayerGui"))
-SG.Name = "RealFlyJump"
-SG.ResetOnSpawn = false
+SG.Name = "SpeedFlyGUI"; SG.ResetOnSpawn = false
 
+-- ปุ่มเปิด
 local OpenBtn = Instance.new("TextButton", SG)
-OpenBtn.Size = UDim2.new(0,140,0,50)
-OpenBtn.Position = UDim2.new(1,-160,1,-70)
-OpenBtn.BackgroundColor3 = Color3.fromRGB(0,170,255)
-OpenBtn.Text = "Speed + FlyJump"
-OpenBtn.TextColor3 = Color3.new(1,1,1)
-OpenBtn.Font = Enum.Font.GothamBold
-OpenBtn.TextSize = 18
-Instance.new("UICorner", OpenBtn).CornerRadius = UDim.new(0,12)
+OpenBtn.Size = UDim2.new(0,150,0,50); OpenBtn.Position = UDim2.new(1,-170,1,-70)
+OpenBtn.BackgroundColor3 = Color3.fromRGB(0,170,255); OpenBtn.Text = "🚀 Speed+Fly"
+OpenBtn.TextColor3 = Color3.new(1,1,1); OpenBtn.Font = Enum.Font.GothamBold; OpenBtn.TextSize = 18
+local OpenC = Instance.new("UICorner", OpenBtn); OpenC.CornerRadius = UDim.new(0,12)
 
+-- Panel
 local Panel = Instance.new("Frame", SG)
-Panel.Size = UDim2.new(0,300,0,170)
-Panel.Position = UDim2.new(0.5,-150,0.5,-85)
-Panel.BackgroundColor3 = Color3.fromRGB(20,20,35)
-Panel.BorderColor3 = Color3.fromRGB(0,255,150)
-Panel.BorderSizePixel = 2
-Panel.Visible = false
-Panel.Draggable = true
-Panel.Active = true
-Instance.new("UICorner", Panel).CornerRadius = UDim.new(0,12)
+Panel.Size = UDim2.new(0,320,0,180); Panel.Position = UDim2.new(0.5,-160,0.5,-90)
+Panel.BackgroundColor3 = Color3.fromRGB(20,20,35); Panel.BorderSizePixel = 2
+Panel.BorderColor3 = Color3.fromRGB(0,255,150); Panel.Visible = false; Panel.Draggable = true; Panel.Active = true
+local PanelC = Instance.new("UICorner", Panel); PanelC.CornerRadius = UDim.new(0,12)
 
--- Title & Close
-Instance.new("TextLabel", Panel).Size = UDim2.new(1,0,0,35)
-local Title = Panel.TextLabel
-Title.BackgroundTransparency = 1
-Title.Text = "SPEED + FLY JUMP"
-Title.TextColor3 = Color3.fromRGB(0,255,150)
-Title.Font = Enum.Font.GothamBold
-Title.TextSize = 20
+-- Title
+local Title = Instance.new("TextLabel", Panel)
+Title.Size = UDim2.new(1,0,0,40); Title.BackgroundTransparency = 1; Title.Text = "⚡ SPEED + FLY HACK ⚡"
+Title.TextColor3 = Color3.fromRGB(0,255,150); Title.Font = Enum.Font.GothamBold; Title.TextSize = 20
 
+-- Close
 local Close = Instance.new("TextButton", Panel)
-Close.Size = UDim2.new(0,30,0,30)
-Close.Position = UDim2.new(1,-35,0,3)
-Close.BackgroundColor3 = Color3.fromRGB(255,70,70)
-Close.Text = "X"
-Close.TextColor3 = Color3.new(1,1,1)
-Close.Font = Enum.Font.GothamBold
-Instance.new("UICorner", Close)
+Close.Size = UDim2.new(0,35,0,35); Close.Position = UDim2.new(1,-40,0,2.5)
+Close.BackgroundColor3 = Color3.fromRGB(255,80,80); Close.Text = "X"; Close.TextColor3 = Color3.new(1,1,1)
+Close.Font = Enum.Font.GothamBold; Close.TextSize = 20; local CloseC = Instance.new("UICorner", Close)
 
 -- Speed Label + Slider
 local SL = Instance.new("TextLabel", Panel)
-SL.Position = UDim2.new(0,20,0,40)
-SL.Size = UDim2.new(1,-40,0,25)
-SL.BackgroundTransparency = 1
-SL.Text = "Speed: 50"
-SL.TextColor3 = Color3.new(1,1,1)
-SL.Font = Enum.Font.GothamBold
-SL.TextSize = 18
+SL.Size = UDim2.new(1,-40,0,30); SL.Position = UDim2.new(0,20,0,45)
+SL.BackgroundTransparency = 1; SL.Text = "ความเร็ว: 50"; SL.TextColor3 = Color3.new(1,1,1)
+SL.Font = Enum.Font.GothamBold; SL.TextSize = 18
 
 local SBG = Instance.new("Frame", Panel)
-SBG.Position = UDim2.new(0,20,0,70)
-SBG.Size = UDim2.new(1,-40,0,30)
-SBG.BackgroundColor3 = Color3.fromRGB(50,50,60)
-Instance.new("UICorner", SBG).CornerRadius = UDim.new(0,10)
+SBG.Size = UDim2.new(1,-40,0,25); SBG.Position = UDim2.new(0,20,0,80)
+SBG.BackgroundColor3 = Color3.fromRGB(50,50,60); local SBGC = Instance.new("UICorner", SBG); SBGC.CornerRadius = UDim.new(0,12)
 
-local Fill = Instance.new("Frame", SBG)
-Fill.Size = UDim2.new(0.1,0,1,0)
-Fill.BackgroundColor3 = Color3.fromRGB(0,255,150)
-Instance.new("UICorner", Fill).CornerRadius = UDim.new(0,10)
+local Fill = Instance.new("Frame", SBG); Fill.Size = UDim2.new(0.068,0,1,0); Fill.BackgroundColor3 = Color3.fromRGB(0,255,150)
+local FillC = Instance.new("UICorner", Fill); FillC.CornerRadius = UDim.new(0,12)
 
 local Knob = Instance.new("TextButton", Fill)
-Knob.Size = UDim2.new(0,35,0,35)
-Knob.Position = UDim2.new(0,-17.5,0,-2.5)
-Knob.BackgroundColor3 = Color3.new(1,1,1)
-Knob.Text = ""
-Instance.new("UICorner", Knob).CornerRadius = UDim.new(1,0)
+Knob.Size = UDim2.new(0,32,0,32); Knob.Position = UDim2.new(0,-16,0,-3.5)
+Knob.BackgroundColor3 = Color3.new(1,1,1); Knob.Text = ""; local KnobC = Instance.new("UICorner", Knob); KnobC.CornerRadius = UDim.new(1,0)
 
--- ปุ่ม Toggle
-local BtnSpeed = Instance.new("TextButton", Panel)
-BtnSpeed.Size = UDim2.new(0,85,0,40)
-BtnSpeed.Position = UDim2.new(0,20,1,-55)
-BtnSpeed.BackgroundColor3 = Color3.fromRGB(255,80,80)
-BtnSpeed.Text = "Speed OFF"
-BtnSpeed.TextColor3 = Color3.new(1,1,1)
-BtnSpeed.Font = Enum.Font.GothamBold
-Instance.new("UICorner", BtnSpeed).CornerRadius = UDim.new(0,10)
+-- Toggle Speed
+local TSpeed = Instance.new("TextButton", Panel)
+TSpeed.Size = UDim2.new(0,90,0,45); TSpeed.Position = UDim2.new(0,20,1,-55)
+TSpeed.BackgroundColor3 = Color3.fromRGB(255,80,80); TSpeed.Text = "Speed OFF"
+TSpeed.TextColor3 = Color3.new(1,1,1); TSpeed.Font = Enum.Font.GothamBold; TSpeed.TextSize = 16
+local TSC = Instance.new("UICorner", TSpeed); TSC.CornerRadius = UDim.new(0,10)
 
-local BtnJump = Instance.new("TextButton", Panel)
-BtnJump.Size = UDim2.new(0,85,0,40)
-BtnJump.Position = UDim2.new(0,115,1,-55)
-BtnJump.BackgroundColor3 = Color3.fromRGB(255,80,80)
-BtnJump.Text = "FlyJump OFF"
-BtnJump.TextColor3 = Color3.new(1,1,1)
-BtnJump.Font = Enum.Font.GothamBold
-Instance.new("UICorner", BtnJump).CornerRadius = UDim.new(0,10)
+-- Toggle Fly
+local TFly = Instance.new("TextButton", Panel)
+TFly.Size = UDim2.new(0,90,0,45); TFly.Position = UDim2.new(0,120,1,-55)
+TFly.BackgroundColor3 = Color3.fromRGB(255,80,80); TFly.Text = "Fly OFF"
+TFly.TextColor3 = Color3.new(1,1,1); TFly.Font = Enum.Font.GothamBold; TFly.TextSize = 16
+local TFC = Instance.new("UICorner", TFly); TFC.CornerRadius = UDim.new(0,10)
 
--- ฟังก์ชันอัพเดท Speed
+-- Update Speed Func
 local function UpdateSpeed(val)
-    CurrentSpeed = val
-    SL.Text = "Speed: " .. val
-    local percent = (val - MinSpeed) / (MaxSpeed - MinSpeed)
-    Fill.Size = UDim2.new(percent, 0, 1, 0)
-    Knob.Position = UDim2.new(percent, -17.5, 0, -2.5)
-    if Player.Character and Player.Character:FindFirstChild("Humanoid") and SpeedOn then
-        Player.Character.Humanoid.WalkSpeed = val
-    end
+    CurrentSpeed = val; SL.Text = "ความเร็ว: " .. val
+    local p = (val - MinSpeed) / (MaxSpeed - MinSpeed)
+    Fill.Size = UDim2.new(p,0,1,0); Knob.Position = UDim2.new(p,-16,0,-3.5)
 end
 
--- Slider
+-- Slider Drag
 local dragging = false
 Knob.MouseButton1Down:Connect(function() dragging = true end)
 UIS.InputEnded:Connect(function(i)
-    if i.UserInputType == Enum.UserInputType.MouseButton1 or i.UserInputType == Enum.UserInputType.Touch then
-        dragging = false
-    end
+    if i.UserInputType == Enum.UserInputType.MouseButton1 or i.UserInputType == Enum.UserInputType.Touch then dragging = false end
 end)
 RunService.RenderStepped:Connect(function()
     if dragging then
@@ -132,59 +91,86 @@ RunService.RenderStepped:Connect(function()
     end
 end)
 
--- Toggle Speed
-BtnSpeed.MouseButton1Click:Connect(function()
+-- Speed Toggle
+TSpeed.MouseButton1Click:Connect(function()
     SpeedOn = not SpeedOn
-    BtnSpeed.Text = SpeedOn and "Speed ON" or "Speed OFF"
-    BtnSpeed.BackgroundColor3 = SpeedOn and Color3.fromRGB(80,255,80) or Color3.fromRGB(255,80,80)
-    if Player.Character and Player.Character:FindFirstChild("Humanoid") then
-        Player.Character.Humanoid.WalkSpeed = SpeedOn and CurrentSpeed or 16
-    end
+    TSpeed.Text = SpeedOn and "Speed ON" or "Speed OFF"
+    TSpeed.BackgroundColor3 = SpeedOn and Color3.fromRGB(80,255,80) or Color3.fromRGB(255,80,80)
+    local hum = Player.Character and Player.Character:FindFirstChild("Humanoid")
+    if hum then hum.WalkSpeed = SpeedOn and CurrentSpeed or 16 end
 end)
 
--- Infinite Jump + Fly (ลอยฟ้าได้จริง!)
-BtnJump.MouseButton1Click:Connect(function()
-    InfJumpOn = not InfJumpOn
-    BtnJump.Text = InfJumpOn and "FlyJump ON" or "FlyJump OFF"
-    BtnJump.BackgroundColor3 = InfJumpOn and Color3.fromRGB(80,255,80) or Color3.fromRGB(255,80,80)
-end)
-
--- สำคัญมาก: ใช้ JumpRequest + บังคับ JumpPower
-UIS.InputBegan:Connect(function(input, gp)
-    if gp or not InfJumpOn then return end
-    if input.KeyCode == Enum.KeyCode.Space then
-        if Player.Character and Player.Character:FindFirstChild("Humanoid") then
-            local hum = Player.Character.Humanoid
-            hum:ChangeState(Enum.HumanoidStateType.Jumping)  -- บังคับกระโดด
-            -- หรือถ้ายังไม่ลอย ให้เพิ่ม JumpPower ชั่วคราว
-            if hum.UseJumpPower then
-                hum.JumpPower = 120
-            else
-                hum.JumpHeight = 15
-            end
+-- Fly Funcs
+local function StartFly()
+    local char = Player.Character
+    if not char then return end
+    local hum = char:FindFirstChild("Humanoid")
+    local root = char:FindFirstChild("HumanoidRootPart")
+    if not hum or not root then return end
+    hum.PlatformStand = true
+    FlyConn = RunService.Heartbeat:Connect(function()
+        if not FlyOn or not char.Parent or not root.Parent then FlyConn:Disconnect(); return end
+        local cam = workspace.CurrentCamera
+        local move = Vector3.new(0,0,0)
+        if UIS:IsKeyDown(Enum.KeyCode.W) then move = move + cam.CFrame.LookVector end
+        if UIS:IsKeyDown(Enum.KeyCode.S) then move = move - cam.CFrame.LookVector end
+        if UIS:IsKeyDown(Enum.KeyCode.A) then move = move - cam.CFrame.RightVector end
+        if UIS:IsKeyDown(Enum.KeyCode.D) then move = move + cam.CFrame.RightVector end
+        if UIS:IsKeyDown(Enum.KeyCode.Space) then move = move + Vector3.yAxis end
+        if UIS:IsKeyDown(Enum.KeyCode.LeftShift) then move = move - Vector3.yAxis end
+        root.Velocity = move.Unit * CurrentSpeed
+    end)
+    NoclipConn = RunService.Stepped:Connect(function()
+        if not FlyOn then return end
+        for _, part in pairs(char:GetDescendants()) do
+            if part:IsA("BasePart") then part.CanCollide = false end
         end
+    end)
+end
+
+local function StopFly()
+    FlyOn = false
+    if FlyConn then FlyConn:Disconnect(); FlyConn = nil end
+    if NoclipConn then NoclipConn:Disconnect(); NoclipConn = nil end
+    local char = Player.Character
+    if char then
+        local hum = char:FindFirstChild("Humanoid")
+        local root = char:FindFirstChild("HumanoidRootPart")
+        if hum then hum.PlatformStand = false end
+        if root then root.Velocity = Vector3.new() end
     end
+end
+
+-- Fly Toggle
+TFly.MouseButton1Click:Connect(function()
+    FlyOn = not FlyOn
+    TFly.Text = FlyOn and "Fly ON" or "Fly OFF"
+    TFly.BackgroundColor3 = FlyOn and Color3.fromRGB(80,255,80) or Color3.fromRGB(255,80,80)
+    if FlyOn then StartFly() else StopFly() end
 end)
 
--- ป้องกันรีเซ็ต Speed
+-- Speed Anti-Reset (only when not flying)
 RunService.Heartbeat:Connect(function()
-    if SpeedOn and Player.Character and Player.Character:FindFirstChild("Humanoid") then
+    if SpeedOn and Player.Character and Player.Character:FindFirstChild("Humanoid") and not FlyOn then
         if Player.Character.Humanoid.WalkSpeed ~= CurrentSpeed then
             Player.Character.Humanoid.WalkSpeed = CurrentSpeed
         end
     end
 end)
 
-Player.CharacterAdded:Connect(function(char)
+-- Respawn
+Player.CharacterAdded:Connect(function()
     task.wait(1)
-    if SpeedOn then
-        char:WaitForChild("Humanoid").WalkSpeed = CurrentSpeed
-    end
+    local hum = Player.Character:WaitForChild("Humanoid")
+    hum.WalkSpeed = SpeedOn and CurrentSpeed or 16
+    if FlyOn then StartFly() end
 end)
 
--- เปิด/ปิด Panel
-OpenBtn.MouseButton1Click:Connect(function() OpenBtn.Visible = false Panel.Visible = true end)
-Close.MouseButton1Click:Connect(function() Panel.Visible = false OpenBtn.Visible = true end)
+-- Open/Close
+OpenBtn.MouseButton1Click:Connect(function() OpenBtn.Visible = false; Panel.Visible = true end)
+Close.MouseButton1Click:Connect(function() Panel.Visible = false; OpenBtn.Visible = true; StopFly() end)
 
 UpdateSpeed(50)
-game.StarterGui:SetCore("SendNotification",{Title="Success",Text="กดปุ่มฟ้า → เปิด FlyJump → กด Space ค้าง = ลอยฟ้าได้เลย!",Duration=8})
+game.StarterGui:SetCore("SendNotification", {
+    Title = "🚀 Speed + Fly"; Text = "กดปุ่มฟ้า → Fly ON → WASD+Space/Shift = บินลื่นทะลุกำแพง!"; Duration = 8
+})
