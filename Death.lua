@@ -1,4 +1,4 @@
--- Delta Run ESP with Fake Headlock GUI
+-- Delta Run Real Headlock ESP for Flick Map
 -- วางใน LocalScript ภายใน StarterPlayerScripts
 
 local Players = game:GetService("Players")
@@ -6,377 +6,307 @@ local RunService = game:GetService("RunService")
 local UserInputService = game:GetService("UserInputService")
 local TweenService = game:GetService("TweenService")
 local LocalPlayer = Players.LocalPlayer
+local Mouse = LocalPlayer:GetMouse()
 
 -- ตั้งค่าหลัก
 local ESP_ENABLED = false
 local HEADLOCK_ENABLED = false
-local FAKE_LOADING = true
+local AIMBOT_ENABLED = false
+local CURRENT_TARGET = nil
 
 -- สี
 local COLORS = {
     RED = Color3.fromRGB(255, 0, 0),
     GREEN = Color3.fromRGB(0, 255, 0),
     BLUE = Color3.fromRGB(0, 100, 255),
-    PURPLE = Color3.fromRGB(180, 0, 255),
     YELLOW = Color3.fromRGB(255, 255, 0),
+    PURPLE = Color3.fromRGB(180, 0, 255),
     WHITE = Color3.fromRGB(255, 255, 255)
 }
 
 -- เก็บข้อมูล
 local espObjects = {}
-local fakeTarget = nil
-local connectionLoop = nil
+local headlockConnection = nil
+local circleGUI = nil
 
--- ⚡ สร้าง GUI ที่ดูเหมือนของจริง
-local function createFakeGUI()
-    -- สร้าง Main GUI
-    local mainGUI = Instance.new("ScreenGui")
-    mainGUI.Name = "DeltaRunESP"
-    mainGUI.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
-    mainGUI.ResetOnSpawn = false
+-- 🎯 ฟังก์ชันล็อกหัวจริง
+local function realHeadlock(targetHead)
+    if not targetHead then return end
+    
+    local camera = workspace.CurrentCamera
+    local localHead = LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("Head")
+    
+    if not camera or not localHead then return end
+    
+    -- คำนวณตำแหน่งสำหรับเล็งหัว
+    local headPosition = targetHead.Position
+    local headVelocity = targetHead.AssemblyLinearVelocity
+    
+    -- ทำนายตำแหน่ง (prediction)
+    local distance = (localHead.Position - headPosition).Magnitude
+    local travelTime = distance / 1000 -- ความเร็วกระสุนประมาณ
+    local predictedPosition = headPosition + (headVelocity * travelTime)
+    
+    -- เล็งไปที่หัว
+    camera.CFrame = CFrame.lookAt(camera.CFrame.Position, predictedPosition)
+    
+    return predictedPosition
+end
 
-    -- Main Frame
-    local mainFrame = Instance.new("Frame")
-    mainFrame.Size = UDim2.new(0, 350, 0, 400)
-    mainFrame.Position = UDim2.new(0.5, -175, 0.5, -200)
-    mainFrame.BackgroundColor3 = Color3.fromRGB(20, 20, 30)
-    mainFrame.BorderSizePixel = 0
-    mainFrame.ClipsDescendants = true
-    mainFrame.Parent = mainGUI
+-- 🎯 ค้นหาศัตรูที่ใกล้ที่สุด
+local function findClosestEnemy()
+    local closestPlayer = nil
+    local closestDistance = math.huge
+    local localHead = LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("Head")
+    
+    if not localHead then return nil end
+    
+    for _, player in ipairs(Players:GetPlayers()) do
+        if player ~= LocalPlayer and player.Character then
+            local humanoid = player.Character:FindFirstChild("Humanoid")
+            local head = player.Character:FindFirstChild("Head")
+            
+            if humanoid and humanoid.Health > 0 and head then
+                local distance = (localHead.Position - head.Position).Magnitude
+                if distance < closestDistance then
+                    closestDistance = distance
+                    closestPlayer = player
+                end
+            end
+        end
+    end
+    
+    return closestPlayer
+end
 
-    -- Corner
+-- 🎯 Aimbot System
+local function aimAtHead(targetHead)
+    if not targetHead then return end
+    
+    -- สำหรับเกม Flick Map ที่ต้องคลิกเมาส์เร็ว
+    local camera = workspace.CurrentCamera
+    local screenPoint = camera:WorldToScreenPoint(targetHead.Position)
+    
+    -- ส่งเมาส์ไปที่ตำแหน่งหัว (จำลองการเล็ง)
+    mousemoverel(screenPoint.X - Mouse.X, screenPoint.Y - Mouse.Y)
+end
+
+-- 🔘 สร้าง Circle GUI ไม่บังหน้าจอ
+local function createCircleGUI()
+    if circleGUI then circleGUI:Destroy() end
+    
+    local gui = Instance.new("ScreenGui")
+    gui.Name = "HeadlockCircle"
+    gui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
+    gui.ResetOnSpawn = false
+    
+    -- Circle Toggle Button
+    local circleButton = Instance.new("TextButton")
+    circleButton.Size = UDim2.new(0, 60, 0, 60)
+    circleButton.Position = UDim2.new(1, -70, 0.5, -30)
+    circleButton.BackgroundColor3 = Color3.fromRGB(30, 30, 45)
+    circleButton.Text = "⚙️"
+    circleButton.TextColor3 = COLORS.WHITE
+    circleButton.TextSize = 20
+    circleButton.Font = Enum.Font.GothamBold
+    
+    -- Make it circular
     local corner = Instance.new("UICorner")
-    corner.CornerRadius = UDim.new(0, 8)
-    corner.Parent = mainFrame
-
-    -- Stroke
+    corner.CornerRadius = UDim.new(1, 0)
+    corner.Parent = circleButton
+    
     local stroke = Instance.new("UIStroke")
     stroke.Color = COLORS.PURPLE
     stroke.Thickness = 2
-    stroke.Parent = mainFrame
-
-    -- Title Bar
-    local titleBar = Instance.new("Frame")
-    titleBar.Size = UDim2.new(1, 0, 0, 40)
-    titleBar.BackgroundColor3 = Color3.fromRGB(30, 30, 45)
-    titleBar.BorderSizePixel = 0
-    titleBar.Parent = mainFrame
-
-    local titleCorner = Instance.new("UICorner")
-    titleCorner.CornerRadius = UDim.new(0, 8)
-    titleCorner.Parent = titleBar
-
-    -- Title Text
-    local titleText = Instance.new("TextLabel")
-    titleText.Size = UDim2.new(1, -40, 1, 0)
-    titleText.Position = UDim2.new(0, 10, 0, 0)
-    titleText.BackgroundTransparency = 1
-    titleText.Text = "DELTA RUN ESP v2.0"
-    titleText.TextColor3 = COLORS.WHITE
-    titleText.TextSize = 16
-    titleText.Font = Enum.Font.GothamBold
-    titleText.TextXAlignment = Enum.TextXAlignment.Left
-    titleText.Parent = titleBar
-
-    -- Close Button
-    local closeButton = Instance.new("TextButton")
-    closeButton.Size = UDim2.new(0, 30, 0, 30)
-    closeButton.Position = UDim2.new(1, -35, 0, 5)
-    closeButton.BackgroundColor3 = Color3.fromRGB(255, 50, 50)
-    closeButton.Text = "X"
-    closeButton.TextColor3 = COLORS.WHITE
-    closeButton.TextSize = 14
-    closeButton.Font = Enum.Font.GothamBold
-    closeButton.Parent = titleBar
-
-    local closeCorner = Instance.new("UICorner")
-    closeCorner.CornerRadius = UDim.new(0, 4)
-    closeCorner.Parent = closeButton
-
-    -- Content Frame
-    local contentFrame = Instance.new("Frame")
-    contentFrame.Size = UDim2.new(1, -20, 1, -60)
-    contentFrame.Position = UDim2.new(0, 10, 0, 50)
-    contentFrame.BackgroundTransparency = 1
-    contentFrame.Parent = mainFrame
-
-    -- Loading Animation (เหมือนของจริง)
-    local loadingFrame = Instance.new("Frame")
-    loadingFrame.Size = UDim2.new(1, 0, 1, 0)
-    loadingFrame.BackgroundColor3 = Color3.fromRGB(20, 20, 30)
-    loadingFrame.Visible = FAKE_LOADING
-    loadingFrame.Parent = contentFrame
-
-    local loadingText = Instance.new("TextLabel")
-    loadingText.Size = UDim2.new(1, 0, 0, 30)
-    loadingText.Position = UDim2.new(0, 0, 0.5, -15)
-    loadingText.BackgroundTransparency = 1
-    loadingText.Text = "Loading ESP System..."
-    loadingText.TextColor3 = COLORS.PURPLE
-    loadingText.TextSize = 18
-    loadingText.Font = Enum.Font.GothamBold
-    loadingText.Parent = loadingFrame
-
-    local loadingBar = Instance.new("Frame")
-    loadingBar.Size = UDim2.new(0, 0, 0, 4)
-    loadingBar.Position = UDim2.new(0, 0, 0.5, 20)
-    loadingBar.BackgroundColor3 = COLORS.PURPLE
-    loadingBar.BorderSizePixel = 0
-    loadingBar.Parent = loadingFrame
-
-    local loadingBarCorner = Instance.new("UICorner")
-    loadingBarCorner.CornerRadius = UDim.new(0, 2)
-    loadingBarCorner.Parent = loadingBar
-
-    -- Control Buttons
-    local buttonContainer = Instance.new("Frame")
-    buttonContainer.Size = UDim2.new(1, 0, 0, 200)
-    buttonContainer.Position = UDim2.new(0, 0, 0, 0)
-    buttonContainer.BackgroundTransparency = 1
-    buttonContainer.Visible = not FAKE_LOADING
-    buttonContainer.Parent = contentFrame
-
-    -- ESP Toggle Button
-    local espButton = Instance.new("TextButton")
-    espButton.Size = UDim2.new(1, 0, 0, 45)
-    espButton.Position = UDim2.new(0, 0, 0, 10)
-    espButton.BackgroundColor3 = Color3.fromRGB(40, 40, 60)
-    espButton.Text = "ESP: OFF"
-    espButton.TextColor3 = COLORS.RED
-    espButton.TextSize = 16
-    espButton.Font = Enum.Font.GothamBold
-    espButton.Parent = buttonContainer
-
+    stroke.Parent = circleButton
+    
+    -- Menu Frame (จะแสดงเมื่อคลิก)
+    local menuFrame = Instance.new("Frame")
+    menuFrame.Size = UDim2.new(0, 150, 0, 120)
+    menuFrame.Position = UDim2.new(1, -160, 0.5, -60)
+    menuFrame.BackgroundColor3 = Color3.fromRGB(20, 20, 30)
+    menuFrame.Visible = false
+    
+    local menuCorner = Instance.new("UICorner")
+    menuCorner.CornerRadius = UDim.new(0, 8)
+    menuCorner.Parent = menuFrame
+    
+    local menuStroke = Instance.new("UIStroke")
+    menuStroke.Color = COLORS.PURPLE
+    menuStroke.Thickness = 1
+    menuStroke.Parent = menuFrame
+    
+    -- ESP Toggle
+    local espToggle = Instance.new("TextButton")
+    espToggle.Size = UDim2.new(1, -10, 0, 30)
+    espToggle.Position = UDim2.new(0, 5, 0, 10)
+    espToggle.BackgroundColor3 = Color3.fromRGB(40, 40, 60)
+    espToggle.Text = "ESP: OFF"
+    espToggle.TextColor3 = COLORS.RED
+    espToggle.TextSize = 12
+    espToggle.Font = Enum.Font.GothamBold
+    
     local espCorner = Instance.new("UICorner")
-    espCorner.CornerRadius = UDim.new(0, 6)
-    espCorner.Parent = espButton
-
-    local espStroke = Instance.new("UIStroke")
-    espStroke.Color = COLORS.RED
-    espStroke.Thickness = 2
-    espStroke.Parent = espButton
-
-    -- Headlock Toggle Button
-    local headlockButton = Instance.new("TextButton")
-    headlockButton.Size = UDim2.new(1, 0, 0, 45)
-    headlockButton.Position = UDim2.new(0, 0, 0, 65)
-    headlockButton.BackgroundColor3 = Color3.fromRGB(40, 40, 60)
-    headlockButton.Text = "HEADLOCK: OFF"
-    headlockButton.TextColor3 = COLORS.RED
-    headlockButton.TextSize = 16
-    headlockButton.Font = Enum.Font.GothamBold
-    headlockButton.Parent = buttonContainer
-
+    espCorner.CornerRadius = UDim.new(0, 4)
+    espCorner.Parent = espToggle
+    
+    -- Headlock Toggle
+    local headlockToggle = Instance.new("TextButton")
+    headlockToggle.Size = UDim2.new(1, -10, 0, 30)
+    headlockToggle.Position = UDim2.new(0, 5, 0, 45)
+    headlockToggle.BackgroundColor3 = Color3.fromRGB(40, 40, 60)
+    headlockToggle.Text = "HEADLOCK: OFF"
+    headlockToggle.TextColor3 = COLORS.RED
+    headlockToggle.TextSize = 12
+    headlockToggle.Font = Enum.Font.GothamBold
+    
     local headlockCorner = Instance.new("UICorner")
-    headlockCorner.CornerRadius = UDim.new(0, 6)
-    headlockCorner.Parent = headlockButton
-
-    local headlockStroke = Instance.new("UIStroke")
-    headlockStroke.Color = COLORS.RED
-    headlockStroke.Thickness = 2
-    headlockStroke.Parent = headlockButton
-
-    -- Status Display
-    local statusFrame = Instance.new("Frame")
-    statusFrame.Size = UDim2.new(1, 0, 0, 80)
-    statusFrame.Position = UDim2.new(0, 0, 1, -90)
-    statusFrame.BackgroundColor3 = Color3.fromRGB(30, 30, 45)
-    statusFrame.Parent = contentFrame
-
-    local statusCorner = Instance.new("UICorner")
-    statusCorner.CornerRadius = UDim.new(0, 6)
-    statusCorner.Parent = statusFrame
-
-    local statusTitle = Instance.new("TextLabel")
-    statusTitle.Size = UDim2.new(1, 0, 0, 25)
-    statusTitle.BackgroundTransparency = 1
-    statusTitle.Text = "SYSTEM STATUS"
-    statusTitle.TextColor3 = COLORS.WHITE
-    statusTitle.TextSize = 14
-    statusTitle.Font = Enum.Font.GothamBold
-    statusTitle.Parent = statusFrame
-
-    local statusText = Instance.new("TextLabel")
-    statusText.Size = UDim2.new(1, -10, 1, -25)
-    statusText.Position = UDim2.new(0, 5, 0, 25)
-    statusText.BackgroundTransparency = 1
-    statusText.Text = "Waiting for activation..."
-    statusText.TextColor3 = COLORS.YELLOW
-    statusText.TextSize = 12
-    statusText.Font = Enum.Font.Gotham
-    statusText.TextXAlignment = Enum.TextXAlignment.Left
-    statusText.TextYAlignment = Enum.TextYAlignment.Top
-    statusText.Parent = statusFrame
-
-    -- Fake Console Output
-    local consoleFrame = Instance.new("ScrollingFrame")
-    consoleFrame.Size = UDim2.new(1, 0, 0, 100)
-    consoleFrame.Position = UDim2.new(0, 0, 1, -200)
-    consoleFrame.BackgroundColor3 = Color3.fromRGB(15, 15, 25)
-    consoleFrame.BorderSizePixel = 0
-    consoleFrame.ScrollBarThickness = 4
-    consoleFrame.Visible = not FAKE_LOADING
-    consoleFrame.Parent = contentFrame
-
-    local consoleCorner = Instance.new("UICorner")
-    consoleCorner.CornerRadius = UDim.new(0, 6)
-    consoleCorner.Parent = consoleFrame
-
-    -- Animation Loading Bar
-    if FAKE_LOADING then
-        spawn(function()
-            for i = 1, 100 do
-                loadingBar.Size = UDim2.new(0, i * 3.2, 0, 4)
-                loadingText.Text = "Loading ESP System... " .. i .. "%"
-                wait(0.02)
+    headlockCorner.CornerRadius = UDim.new(0, 4)
+    headlockCorner.Parent = headlockToggle
+    
+    -- Aimbot Toggle
+    local aimbotToggle = Instance.new("TextButton")
+    aimbotToggle.Size = UDim2.new(1, -10, 0, 30)
+    aimbotToggle.Position = UDim2.new(0, 5, 0, 80)
+    aimbotToggle.BackgroundColor3 = Color3.fromRGB(40, 40, 60)
+    aimbotToggle.Text = "AIMBOT: OFF"
+    aimbotToggle.TextColor3 = COLORS.RED
+    aimbotToggle.TextSize = 12
+    aimbotToggle.Font = Enum.Font.GothamBold
+    
+    local aimbotCorner = Instance.new("UICorner")
+    aimbotCorner.CornerRadius = UDim.new(0, 4)
+    aimbotCorner.Parent = aimbotToggle
+    
+    -- Add to parents
+    espToggle.Parent = menuFrame
+    headlockToggle.Parent = menuFrame
+    aimbotToggle.Parent = menuFrame
+    menuFrame.Parent = gui
+    circleButton.Parent = gui
+    gui.Parent = LocalPlayer:WaitForChild("PlayerGui")
+    
+    -- Toggle menu visibility
+    circleButton.MouseButton1Click:Connect(function()
+        menuFrame.Visible = not menuFrame.Visible
+    end)
+    
+    -- Close menu when clicking outside
+    gui.InputBegan:Connect(function(input)
+        if input.UserInputType == Enum.UserInputType.MouseButton1 and menuFrame.Visible then
+            local mousePos = input.Position
+            local menuAbsPos = menuFrame.AbsolutePosition
+            local menuSize = menuFrame.AbsoluteSize
+            
+            if mousePos.X < menuAbsPos.X or mousePos.X > menuAbsPos.X + menuSize.X or
+               mousePos.Y < menuAbsPos.Y or mousePos.Y > menuAbsPos.Y + menuSize.Y then
+                menuFrame.Visible = false
             end
-            wait(0.5)
-            FAKE_LOADING = false
-            loadingFrame.Visible = false
-            buttonContainer.Visible = true
-            consoleFrame.Visible = true
-            statusText.Text = "System Ready - Select features to activate"
-        end)
-    end
-
-    -- Button Events
-    espButton.MouseButton1Click:Connect(function()
+        end
+    end)
+    
+    -- Button events
+    espToggle.MouseButton1Click:Connect(function()
         ESP_ENABLED = not ESP_ENABLED
         if ESP_ENABLED then
-            espButton.Text = "ESP: ON"
-            espButton.TextColor3 = COLORS.GREEN
-            espStroke.Color = COLORS.GREEN
-            statusText.Text = "ESP Activated - Visual tracking enabled"
+            espToggle.Text = "ESP: ON"
+            espToggle.TextColor3 = COLORS.GREEN
             initializeESP()
         else
-            espButton.Text = "ESP: OFF"
-            espButton.TextColor3 = COLORS.RED
-            espStroke.Color = COLORS.RED
-            statusText.Text = "ESP Deactivated"
+            espToggle.Text = "ESP: OFF"
+            espToggle.TextColor3 = COLORS.RED
             clearESP()
         end
     end)
-
-    headlockButton.MouseButton1Click:Connect(function()
+    
+    headlockToggle.MouseButton1Click:Connect(function()
         HEADLOCK_ENABLED = not HEADLOCK_ENABLED
         if HEADLOCK_ENABLED then
-            headlockButton.Text = "HEADLOCK: ON"
-            headlockButton.TextColor3 = COLORS.GREEN
-            headlockStroke.Color = COLORS.GREEN
-            statusText.Text = "Headlock Activated - Fake targeting system running"
-            startFakeHeadlock()
+            headlockToggle.Text = "HEADLOCK: ON"
+            headlockToggle.TextColor3 = COLORS.GREEN
+            startHeadlock()
         else
-            headlockButton.Text = "HEADLOCK: OFF"
-            headlockButton.TextColor3 = COLORS.RED
-            headlockStroke.Color = COLORS.RED
-            statusText.Text = "Headlock Deactivated"
-            stopFakeHeadlock()
+            headlockToggle.Text = "HEADLOCK: OFF"
+            headlockToggle.TextColor3 = COLORS.RED
+            stopHeadlock()
         end
     end)
-
-    closeButton.MouseButton1Click:Connect(function()
-        mainGUI:Destroy()
-    end)
-
-    -- Make draggable
-    local dragging = false
-    local dragInput, dragStart, startPos
-
-    titleBar.InputBegan:Connect(function(input)
-        if input.UserInputType == Enum.UserInputType.MouseButton1 then
-            dragging = true
-            dragStart = input.Position
-            startPos = mainFrame.Position
-            input.Changed:Connect(function()
-                if input.UserInputState == Enum.UserInputState.End then
-                    dragging = false
-                end
-            end)
+    
+    aimbotToggle.MouseButton1Click:Connect(function()
+        AIMBOT_ENABLED = not AIMBOT_ENABLED
+        if AIMBOT_ENABLED then
+            aimbotToggle.Text = "AIMBOT: ON"
+            aimbotToggle.TextColor3 = COLORS.GREEN
+        else
+            aimbotToggle.Text = "AIMBOT: OFF"
+            aimbotToggle.TextColor3 = COLORS.RED
         end
     end)
-
-    titleBar.InputChanged:Connect(function(input)
-        if input.UserInputType == Enum.UserInputType.MouseMovement then
-            dragInput = input
-        end
-    end)
-
-    UserInputService.InputChanged:Connect(function(input)
-        if dragging and input == dragInput then
-            local delta = input.Position - dragStart
-            mainFrame.Position = UDim2.new(startPos.X.Scale, startPos.X.Offset + delta.X, startPos.Y.Scale, startPos.Y.Offset + delta.Y)
-        end
-    end)
-
-    mainGUI.Parent = LocalPlayer:WaitForChild("PlayerGui")
-    return mainGUI
+    
+    circleGUI = gui
+    return gui
 end
 
--- 🎯 Fake Headlock System (หลอกเหมือนทำงานจริง)
-local function startFakeHeadlock()
-    if connectionLoop then
-        connectionLoop:Disconnect()
+-- 🎯 ระบบ Headlock จริง
+local function startHeadlock()
+    if headlockConnection then
+        headlockConnection:Disconnect()
     end
     
-    connectionLoop = RunService.Heartbeat:Connect(function()
+    headlockConnection = RunService.Heartbeat:Connect(function()
         if not HEADLOCK_ENABLED then return end
         
-        -- สุ่มเลือก target หลอกๆ
-        local players = Players:GetPlayers()
-        local enemyPlayers = {}
-        
-        for _, player in ipairs(players) do
-            if player ~= LocalPlayer and player.Character then
-                local humanoid = player.Character:FindFirstChild("Humanoid")
-                if humanoid and humanoid.Health > 0 then
-                    table.insert(enemyPlayers, player)
+        local target = findClosestEnemy()
+        if target and target.Character then
+            local head = target.Character:FindFirstChild("Head")
+            if head then
+                CURRENT_TARGET = target
+                
+                -- ล็อกหัวจริง
+                if AIMBOT_ENABLED then
+                    aimAtHead(head)
+                else
+                    realHeadlock(head)
+                end
+                
+                -- เอฟเฟกต์แสดงการล็อก
+                if not head:FindFirstChild("HeadlockEffect") then
+                    local highlight = Instance.new("Highlight")
+                    highlight.Name = "HeadlockEffect"
+                    highlight.FillColor = COLORS.RED
+                    highlight.OutlineColor = COLORS.RED
+                    highlight.FillTransparency = 0.2
+                    highlight.OutlineTransparency = 0
+                    highlight.DepthMode = Enum.HighlightDepthMode.AlwaysOnTop
+                    highlight.Parent = head
                 end
             end
-        end
-        
-        if #enemyPlayers > 0 then
-            -- สุ่มเปลี่ยน target บ้างเพื่อให้ดูเหมือนทำงาน
-            if math.random(1, 30) == 1 then
-                fakeTarget = enemyPlayers[math.random(1, #enemyPlayers)]
-            end
-            
-            if fakeTarget and fakeTarget.Character then
-                local head = fakeTarget.Character:FindFirstChild("Head")
-                if head then
-                    -- สร้างเอฟเฟกต์หลอกๆ
-                    if not head:FindFirstChild("FakeLockEffect") then
-                        local highlight = Instance.new("Highlight")
-                        highlight.Name = "FakeLockEffect"
-                        highlight.FillColor = Color3.fromRGB(255, 0, 255)
-                        highlight.OutlineColor = Color3.fromRGB(255, 0, 255)
-                        highlight.FillTransparency = 0.3
-                        highlight.OutlineTransparency = 0
-                        highlight.Parent = head
-                    end
-                end
-            end
+        else
+            CURRENT_TARGET = nil
         end
     end)
 end
 
-local function stopFakeHeadlock()
-    if connectionLoop then
-        connectionLoop:Disconnect()
-        connectionLoop = nil
+local function stopHeadlock()
+    if headlockConnection then
+        headlockConnection:Disconnect()
+        headlockConnection = nil
     end
     
-    -- ลบเอฟเฟกต์ทั้งหมด
+    CURRENT_TARGET = nil
+    
+    -- ลบเอฟเฟกต์
     for _, player in ipairs(Players:GetPlayers()) do
         if player.Character then
             local head = player.Character:FindFirstChild("Head")
-            if head and head:FindFirstChild("FakeLockEffect") then
-                head.FakeLockEffect:Destroy()
+            if head and head:FindFirstChild("HeadlockEffect") then
+                head.HeadlockEffect:Destroy()
             end
         end
     end
 end
 
--- 🎯 ESP System จริง
+-- 👁️ ESP System
 local function createESP(character, isNPC)
     if not character then return end
     
@@ -385,25 +315,43 @@ local function createESP(character, isNPC)
     
     if not humanoid or not head then return end
     
-    local highlight = Instance.new("Highlight")
-    highlight.Name = "RealESP"
-    highlight.Adornee = character
-    highlight.DepthMode = Enum.HighlightDepthMode.AlwaysOnTop
+    -- ESP สำหรับตัว
+    local bodyHighlight = Instance.new("Highlight")
+    bodyHighlight.Name = "BodyESP"
+    bodyHighlight.Adornee = character
+    bodyHighlight.DepthMode = Enum.HighlightDepthMode.AlwaysOnTop
+    
+    -- ESP สำหรับหัว
+    local headHighlight = Instance.new("Highlight")
+    headHighlight.Name = "HeadESP"
+    headHighlight.Adornee = head
+    headHighlight.DepthMode = Enum.HighlightDepthMode.AlwaysOnTop
     
     local player = Players:GetPlayerFromCharacter(character)
     if player then
-        highlight.FillColor = COLORS.RED
-        highlight.OutlineColor = COLORS.RED
+        bodyHighlight.FillColor = COLORS.RED
+        bodyHighlight.OutlineColor = COLORS.RED
+        headHighlight.FillColor = COLORS.YELLOW
+        headHighlight.OutlineColor = COLORS.YELLOW
     else
-        highlight.FillColor = COLORS.GREEN
-        highlight.OutlineColor = COLORS.GREEN
+        bodyHighlight.FillColor = COLORS.GREEN
+        bodyHighlight.OutlineColor = COLORS.GREEN
+        headHighlight.FillColor = COLORS.BLUE
+        headHighlight.OutlineColor = COLORS.BLUE
     end
     
-    highlight.FillTransparency = 0.6
-    highlight.OutlineTransparency = 0.2
-    highlight.Parent = character
+    bodyHighlight.FillTransparency = 0.7
+    bodyHighlight.OutlineTransparency = 0.3
+    headHighlight.FillTransparency = 0.4
+    headHighlight.OutlineTransparency = 0.1
     
-    espObjects[character] = highlight
+    bodyHighlight.Parent = character
+    headHighlight.Parent = head
+    
+    espObjects[character] = {
+        Body = bodyHighlight,
+        Head = headHighlight
+    }
 end
 
 local function initializeESP()
@@ -445,47 +393,60 @@ local function initializeESP()
 end
 
 local function clearESP()
-    for character, highlight in pairs(espObjects) do
-        if highlight then
-            highlight:Destroy()
-        end
+    for character, espData in pairs(espObjects) do
+        if espData.Body then espData.Body:Destroy() end
+        if espData.Head then espData.Head:Destroy() end
     end
     espObjects = {}
 end
 
 -- 🚀 เริ่มต้นระบบ
 local function initializeSystem()
-    -- สร้าง GUI
-    createFakeGUI()
+    -- สร้าง Circle GUI
+    createCircleGUI()
     
-    -- พิมพ์ข้อความหลอกๆ ใน Output
-    print("Delta Run ESP System Initialized")
-    print("Loading security bypass...")
-    wait(1)
-    print("Anti-cheat bypass: SUCCESS")
-    print("Memory injection: COMPLETE")
-    print("ESP System: READY")
-    print("Headlock System: STANDBY")
+    -- พิมพ์ข้อความยืนยัน
+    print("🎯 Delta Run Real Headlock Loaded!")
+    print("🔘 Circle GUI created at right side")
+    print("🎮 Controls:")
+    print("  - Click gear icon to open menu")
+    print("  - ESP: Visual tracking")
+    print("  - HEADLOCK: Real head targeting")
+    print("  - AIMBOT: Auto aim for Flick Map")
 end
 
--- ⚡ เริ่มระบบเมื่อพร้อม
-if LocalPlayer.Character then
-    initializeSystem()
-else
-    LocalPlayer.CharacterAdded:Connect(initializeSystem)
+-- ⚡ Auto Headshot สำหรับ Flick Map
+local function setupFlickMapAimbot()
+    if not AIMBOT_ENABLED then return end
+    
+    -- สำหรับเกม Flick Map ที่ต้องคลิกเร็ว
+    Mouse.Button1Down:Connect(function()
+        if AIMBOT_ENABLED and CURRENT_TARGET and CURRENT_TARGET.Character then
+            local head = CURRENT_TARGET.Character:FindFirstChild("Head")
+            if head then
+                -- ยิงไปที่หัวโดยอัตโนมัติ
+                aimAtHead(head)
+            end
+        end
+    end)
 end
 
--- 🎮 คีย์บอร์ดลัด
+-- 🎮 คีย์ลัด
 UserInputService.InputBegan:Connect(function(input, gameProcessed)
     if gameProcessed then return end
     
-    -- กด F5 เพื่อเปิด GUI ใหม่
-    if input.KeyCode == Enum.KeyCode.F5 then
-        initializeSystem()
+    -- กด T สำหรับ Headlock เร็ว
+    if input.KeyCode == Enum.KeyCode.T then
+        HEADLOCK_ENABLED = not HEADLOCK_ENABLED
+        if HEADLOCK_ENABLED then
+            startHeadlock()
+        else
+            stopHeadlock()
+        end
     end
     
-    -- กด F6 เพื่อเปิด/ปิด ESP
-    if input.KeyCode == Enum.KeyCode.F6 then
+    -- กด Y สำหรับ ESP เร็ว
+    if input.KeyCode == Enum.KeyCode.Y then
         ESP_ENABLED = not ESP_ENABLED
         if ESP_ENABLED then
             initializeESP()
@@ -495,6 +456,45 @@ UserInputService.InputBegan:Connect(function(input, gameProcessed)
     end
 end)
 
-print("🎯 Delta Run Fake Headlock ESP Loaded!")
-print("📟 Press F5 to open GUI")
-print("🔮 System appears to be loading...")
+-- เริ่มต้นระบบ
+if LocalPlayer.Character then
+    initializeSystem()
+    setupFlickMapAimbot()
+else
+    LocalPlayer.CharacterAdded:Connect(function()
+        initializeSystem()
+        setupFlickMapAimbot()
+    end)
+end
+
+-- ฟังก์ชันสำหรับ Flick Map โดยเฉพาะ
+local FlickMapUtils = {
+    -- สำหรับ Map ที่ต้องเล็งเร็ว
+    QuickFlick = function()
+        if CURRENT_TARGET and CURRENT_TARGET.Character then
+            local head = CURRENT_TARGET.Character:FindFirstChild("Head")
+            if head then
+                aimAtHead(head)
+                return true
+            end
+        end
+        return false
+    end,
+    
+    -- โหมดสแนปเร็วสำหรับ Flick Shot
+    SnapFlick = function()
+        local target = findClosestEnemy()
+        if target and target.Character then
+            local head = target.Character:FindFirstChild("Head")
+            if head then
+                CURRENT_TARGET = target
+                aimAtHead(head)
+                return true
+            end
+        end
+        return false
+    end
+}
+
+-- ส่งออกฟังก์ชันสำหรับ Flick Map
+return FlickMapUtils
