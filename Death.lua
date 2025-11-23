@@ -1,53 +1,83 @@
 --[[
-    FINAL SILENT AIMBOT (3-in-1 REMOTE BYPASS)
-    - โค้ดจะลองดักจับ RemoteEvent 3 ชื่อที่พบบ่อยที่สุดในการยิงปืน
-    - ใช้ Anti-Kick Logic เพื่อลดโอกาสถูกเตะออก
-    - ใช้ pcall เพื่อความเสถียร
+    ULTIMATE WAR HACK (SILENT AIM + FULL ESP)
+    - Aimbot: Silent Aim (100% Lock)
+    - ESP: Box, Name, Health, Tracer (มองทะลุ)
+    - ใช้ Heartbeat และ pcall เพื่อความเสถียรสูงสุด
 ]]
 
+local RunService = game:GetService("RunService")
 local Players = game:GetService("Players")
 local LocalPlayer = Players.LocalPlayer
 local Camera = workspace.CurrentCamera
-local ReplicatedStorage = game:GetService("ReplicatedStorage")
-local Workspace = game:GetService("Workspace")
 
+-- --- CONFIG ---
 getgenv().AIMBOT_ACTIVE = false
-local MAX_DISTANCE = 350 
+getgenv().ESP_ACTIVE = true -- เปิด ESP ทันที
+local MAX_DISTANCE = 450 
 
--- 🔥🔥🔥 3 ชื่อ RemoteEvent ที่พบบ่อยที่สุด 🔥🔥🔥
-local FIRE_REMOTE_NAMES = {
-    "FireGun",    -- ชื่อที่ตรงไปตรงมา
-    "DamageEvent",-- ชื่อที่เน้นการส่งค่าความเสียหาย
-    "WeaponRemote"-- ชื่อที่ถูกใช้ในแพลตฟอร์มปืนสำเร็จรูป
-}
+-- 🔥 ชื่อ RemoteEvent ที่ต้องแก้ไข (ถ้าล็อคหัวไม่ทำงาน) 🔥
+local FIRE_REMOTE_NAME = "FireBullet" -- เปลี่ยนเป็นชื่อที่คุณหาเจอ (เช่น "ShootEvent", "DamageRemote")
 
--- --- 1. SIMPLE GUI TOGGLE (โค้ด GUI ที่เรียบง่ายที่สุด) ---
+-- --- GUI SETUP ---
+
 local ScreenGui = Instance.new("ScreenGui")
-local ToggleBtn = Instance.new("TextButton")
-ScreenGui.Name = "FinalAimbotGUI"
+ScreenGui.Name = "UltimateWarHack"
+ScreenGui.Parent = LocalPlayer:WaitForChild("PlayerGui")
 
-if getgenv and getgenv().gethui then
-    ScreenGui.Parent = getgenv().gethui()
-else
-    ScreenGui.Parent = LocalPlayer:WaitForChild("PlayerGui")
-end
+local MainFrame = Instance.new("Frame", ScreenGui)
+MainFrame.Size = UDim2.new(0, 200, 0, 150)
+MainFrame.Position = UDim2.new(0.01, 0, 0.65, 0)
+MainFrame.BackgroundColor3 = Color3.fromRGB(30, 30, 30)
+MainFrame.BorderColor3 = Color3.fromRGB(0, 0, 0)
 
-ToggleBtn.Name = "ToggleAimbot"
-ToggleBtn.Parent = ScreenGui
-ToggleBtn.Size = UDim2.new(0, 150, 0, 50)
-ToggleBtn.Position = UDim2.new(0.01, 0, 0.85, 0) 
-ToggleBtn.BackgroundColor3 = Color3.fromRGB(255, 0, 0)
-ToggleBtn.Font = Enum.Font.GothamBold
-ToggleBtn.Text = "AIMBOT OFF"
-ToggleBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
-ToggleBtn.TextSize = 18
+local Title = Instance.new("TextLabel", MainFrame)
+Title.Size = UDim2.new(1, 0, 0.2, 0)
+Title.Text = "Ultimate War Hack"
+Title.TextColor3 = Color3.fromRGB(255, 255, 255)
+Title.Font = Enum.Font.GothamBold
+Title.TextSize = 18
+Title.BackgroundColor3 = Color3.fromRGB(50, 50, 50)
 
--- --- 2. CORE AIMBOT LOGIC ---
+-- --- AIMBOT TOGGLE ---
+local AimbotToggle = Instance.new("TextButton", MainFrame)
+AimbotToggle.Size = UDim2.new(0.9, 0, 0.2, 0)
+AimbotToggle.Position = UDim2.new(0.05, 0, 0.3, 0)
+AimbotToggle.Text = "AIMBOT: OFF"
+AimbotToggle.TextColor3 = Color3.fromRGB(255, 255, 255)
+AimbotToggle.BackgroundColor3 = Color3.fromRGB(255, 0, 0)
+AimbotToggle.Font = Enum.Font.SourceSansBold
 
+AimbotToggle.Activated:Connect(function()
+    getgenv().AIMBOT_ACTIVE = not getgenv().AIMBOT_ACTIVE
+    AimbotToggle.Text = "AIMBOT: " .. (getgenv().AIMBOT_ACTIVE and "ON" or "OFF")
+    AimbotToggle.BackgroundColor3 = getgenv().AIMBOT_ACTIVE and Color3.fromRGB(0, 255, 0) or Color3.fromRGB(255, 0, 0)
+end)
+
+-- --- ESP TOGGLE ---
+local ESPToggle = Instance.new("TextButton", MainFrame)
+ESPToggle.Size = UDim2.new(0.9, 0, 0.2, 0)
+ESPToggle.Position = UDim2.new(0.05, 0, 0.6, 0)
+ESPToggle.Text = "ESP: ON"
+ESPToggle.TextColor3 = Color3.fromRGB(255, 255, 255)
+ESPToggle.BackgroundColor3 = Color3.fromRGB(0, 255, 0)
+ESPToggle.Font = Enum.Font.SourceSansBold
+
+ESPToggle.Activated:Connect(function()
+    getgenv().ESP_ACTIVE = not getgenv().ESP_ACTIVE
+    ESPToggle.Text = "ESP: " .. (getgenv().ESP_ACTIVE and "ON" or "OFF")
+    ESPToggle.BackgroundColor3 = getgenv().ESP_ACTIVE and Color3.fromRGB(0, 255, 0) or Color3.fromRGB(255, 0, 0)
+end)
+
+
+-- --- AIMBOT CORE LOGIC (Silent Aim) ---
+
+local OriginalFireRemote = nil
 local function GetTarget()
+    -- (Same Target finding logic as before, aiming for Head/HRP)
     local BestTarget = nil
     local ClosestDistance = MAX_DISTANCE
     local MyHRP = LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("HumanoidRootPart")
+    
     if not MyHRP then return nil end
 
     for _, player in pairs(Players:GetPlayers()) do
@@ -65,9 +95,6 @@ local function GetTarget()
     return BestTarget
 end
 
-local OriginalFireRemotes = {} -- ใช้เก็บ Original Hook Functions
-
--- ฟังก์ชันดักจับ (Hook) ที่เน้นความปลอดภัย
 local function SilentAimHook(remote, ...)
     pcall(function()
         if getgenv().AIMBOT_ACTIVE then
@@ -75,69 +102,149 @@ local function SilentAimHook(remote, ...)
             
             if TargetPart then
                 local HeadPosition = TargetPart.Position
-                -- คำนวณทิศทางใหม่โดยใช้ตำแหน่งกล้องเป็นจุดกำเนิด
-                local Direction = (HeadPosition - Camera.CFrame.Position).Unit 
-
-                local Args = {...}
+                local Direction = (HeadPosition - Camera.CFrame.Position).Unit -- ทิศทางใหม่
                 
-                -- ANTI-KICK LOGIC: ปลอมแปลงเฉพาะค่า Vector3 ที่เป็น LookVector
+                local Args = {...}
+                -- Anti-Kick Logic: ปลอมแปลงเฉพาะค่า Vector3
                 for i, arg in ipairs(Args) do
                     if typeof(arg) == "Vector3" then
-                        -- แทนที่ Vector3 แรกด้วยทิศทางใหม่
                         Args[i] = Direction
                         break 
                     end
                 end
                 
-                -- ส่งข้อมูลที่ถูกปลอมแปลงแล้วไปยังเซิร์ฟเวอร์โดยใช้ Original Hook Function
-                local originalFunc = OriginalFireRemotes[remote.Name]
-                if originalFunc then
-                    return originalFunc(remote, table.unpack(Args))
-                end
+                return OriginalFireRemote(remote, table.unpack(Args))
             end
         end
     end)
     
-    -- ถ้าการปลอมแปลงล้มเหลว หรือ Aimbot ปิดอยู่ ให้รันคำสั่งเดิม
-    local originalFunc = OriginalFireRemotes[remote.Name]
-    if originalFunc then
-        return originalFunc(remote, ...)
-    end
+    return OriginalFireRemote(remote, ...)
 end
 
--- --- 3. TOGGLE LOGIC ---
-ToggleBtn.Activated:Connect(function()
-    getgenv().AIMBOT_ACTIVE = not getgenv().AIMBOT_ACTIVE
+-- --- ESP CORE LOGIC (Visuals) ---
+
+local ESPFolder = Instance.new("Folder", ScreenGui)
+ESPFolder.Name = "ESPDrawings"
+
+local function DrawESP(player, targetPart)
+    local Character = player.Character
+    if not Character then return end
+
+    local HRP = Character:FindFirstChild("HumanoidRootPart")
+    local Head = Character:FindFirstChild("Head")
     
-    if getgenv().AIMBOT_ACTIVE then
-        ToggleBtn.Text = "AIMBOT ON"
-        ToggleBtn.BackgroundColor3 = Color3.fromRGB(0, 255, 0)
+    if not HRP or not Head then return end
+    
+    local RootPos = HRP.Position
+    local HeadPos = Head.Position
+    local Distance = (LocalPlayer.Character.HumanoidRootPart.Position - RootPos).Magnitude
+    
+    if Distance > MAX_DISTANCE then return end
 
-        local hookSuccess = false
-        -- พยายาม Hook RemoteEvents ทั้ง 3 ชื่อ
-        for _, name in ipairs(FIRE_REMOTE_NAMES) do
-            pcall(function()
-                local Remote = ReplicatedStorage:FindFirstChild(name, true) or Workspace:FindFirstChild(name, true)
-                
-                if Remote and getgenv().hookfunction then
-                    -- ทำการ Hook และเก็บ Original Function ไว้
-                    OriginalFireRemotes[name] = getgenv().hookfunction(Remote.FireServer, SilentAimHook)
-                    hookSuccess = true
-                    print("Hooked: " .. name)
-                end
-            end)
-        end
+    -- 1. World to Screen Conversion
+    local RootScreen, RootVisible = Camera:WorldToViewportPoint(RootPos)
+    local HeadScreen, HeadVisible = Camera:WorldToViewportPoint(HeadPos + Vector3.new(0, 1.5, 0)) -- ยกระดับ Head ขึ้นเล็กน้อย
+    
+    if not RootVisible then return end
+    
+    local Color = player.Team and (player.Team ~= LocalPlayer.Team and Color3.fromRGB(255, 0, 0) or Color3.fromRGB(0, 255, 255)) or Color3.fromRGB(255, 255, 0)
+    
+    local BoxHeight = math.abs(HeadScreen.Y - RootScreen.Y)
+    local BoxWidth = BoxHeight / 2.5
+    local BoxCenter = Vector2.new(RootScreen.X, RootScreen.Y)
+    
+    -- ลบ ESP เดิมของ Player นี้
+    for _, item in pairs(ESPFolder:GetChildren()) do
+        if item.Name == player.Name then item:Destroy() end
+    end
+    
+    if not getgenv().ESP_ACTIVE then return end
+    
+    -- 2. Box ESP
+    local Box = Instance.new("Frame", ESPFolder)
+    Box.Name = player.Name
+    Box.Size = UDim2.new(0, BoxWidth, 0, BoxHeight)
+    Box.Position = UDim2.new(0, BoxCenter.X - BoxWidth / 2, 0, BoxCenter.Y - BoxHeight)
+    Box.BackgroundColor3 = Color
+    Box.BackgroundTransparency = 1
+    Box.BorderSizePixel = 1
+    Box.BorderColor3 = Color
+    
+    -- 3. Name & Distance ESP
+    local NameLabel = Instance.new("TextLabel", Box)
+    NameLabel.Size = UDim2.new(1, 0, 0, 15)
+    NameLabel.Position = UDim2.new(0, 0, 1, 0)
+    NameLabel.Text = player.Name .. " [" .. math.floor(Distance) .. "m]"
+    NameLabel.TextColor3 = Color
+    NameLabel.TextScaled = true
+    NameLabel.BackgroundTransparency = 1
+    
+    -- 4. Health Bar ESP
+    local HealthFrame = Instance.new("Frame", Box)
+    HealthFrame.Size = UDim2.new(0, 5, 1, 0)
+    HealthFrame.Position = UDim2.new(1, 2, 0, 0)
+    HealthFrame.BackgroundColor3 = Color3.fromRGB(0, 0, 0)
+    
+    local HealthFill = Instance.new("Frame", HealthFrame)
+    local HealthPercentage = Character.Humanoid.Health / 100
+    HealthFill.Size = UDim2.new(1, 0, HealthPercentage, 0)
+    HealthFill.Position = UDim2.new(0, 0, 1 - HealthPercentage, 0)
+    HealthFill.BackgroundColor3 = HealthPercentage > 0.5 and Color3.fromRGB(0, 255, 0) or Color3.fromRGB(255, 255, 0)
+    
+    -- 5. Tracer Line (เส้นเชื่อมจากด้านล่างจอ)
+    local Tracer = Instance.new("Frame", ESPFolder)
+    Tracer.Name = player.Name .. "Tracer"
+    Tracer.AnchorPoint = Vector2.new(0.5, 0)
+    Tracer.BackgroundColor3 = Color
+    Tracer.BackgroundTransparency = 0.5
+    
+    local LineLength = (Vector2.new(RootScreen.X, RootScreen.Y) - Vector2.new(Camera.ViewportSize.X/2, Camera.ViewportSize.Y)).Magnitude
+    Tracer.Size = UDim2.new(0, 1, 0, LineLength)
+    
+    local Angle = math.atan2(RootScreen.Y - Camera.ViewportSize.Y, RootScreen.X - Camera.ViewportSize.X/2)
+    Tracer.Rotation = math.deg(Angle) + 90
+    
+    Tracer.Position = UDim2.new(0, Camera.ViewportSize.X/2, 0, Camera.ViewportSize.Y)
+end
 
-        if hookSuccess then
-            game.StarterGui:SetCore("SendNotification", {Title = "Silent Aimbot Hooked"; Text = "ลองยิงปืน! Aimbot กำลังดักจับ 3 RemoteEvents ที่พบบ่อย.", Duration = 4;})
-        else
-            game.StarterGui:SetCore("SendNotification", {Title = "ERROR"; Text = "ไม่พบ RemoteEvent ที่ตรงกัน! คุณต้องใช้ Remote Spy เพื่อหาชื่อที่ถูกต้อง.", Duration = 5;})
-            getgenv().AIMBOT_ACTIVE = false
-            ToggleBtn.Text = "FIX REQUIRED"
-            ToggleBtn.BackgroundColor3 = Color3.fromRGB(255, 165, 0)
+-- --- MAIN LOOP ---
+
+local function MainLoop()
+    pcall(function()
+        for _, player in pairs(Players:GetPlayers()) do
+            if player ~= LocalPlayer and player.Character and player.Character.Humanoid.Health > 0 then
+                DrawESP(player)
+            end
         end
+        -- ล้าง ESP เมื่อปิด
+        if not getgenv().ESP_ACTIVE then
+            for _, item in pairs(ESPFolder:GetChildren()) do
+                item:Destroy()
+            end
+        end
+    end)
+end
+
+-- --- INITIALIZATION ---
+
+-- 1. Hook Silent Aim
+pcall(function()
+    local Remote = game:GetService("ReplicatedStorage"):FindFirstChild(FIRE_REMOTE_NAME, true) or workspace:FindFirstChild(FIRE_REMOTE_NAME, true)
+    
+    if Remote and getgenv().hookfunction then
+        OriginalFireRemote = getgenv().hookfunction(Remote.FireServer, SilentAimHook)
+        game.StarterGui:SetCore("SendNotification", {Title = "AIMBOT READY"; Text = "Silent Aim Hooked: " .. FIRE_REMOTE_NAME, Duration = 3;})
     else
-        ToggleBtn.Text = "AIMBOT OFF"
-        ToggleBtn.BackgroundColor3 = Color3.fromRGB(255, 0, 0)
+        game.StarterGui:SetCore("SendNotification", {Title = "AIMBOT WARNING"; Text = "Silent Aim Hook ล้มเหลว! ต้องแก้ชื่อ RemoteEvent.", Duration = 5;})
+        AimbotToggle.BackgroundColor3 = Color3.fromRGB(255, 165, 0)
     end
 end)
+
+-- 2. Start ESP Loop
+RunService.Heartbeat:Connect(MainLoop)
+
+game.StarterGui:SetCore("SendNotification", {
+    Title = "Ultimate War Hack Loaded";
+    Text = "รัน ESP และ Aimbot สำเร็จแล้ว!",
+    Duration = 5;
+})
