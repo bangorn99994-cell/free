@@ -1,37 +1,383 @@
--- Delta Run ESP with Headshot Focus
+-- Delta Run ESP with Fake Headlock GUI
 -- วางใน LocalScript ภายใน StarterPlayerScripts
 
 local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
 local UserInputService = game:GetService("UserInputService")
+local TweenService = game:GetService("TweenService")
 local LocalPlayer = Players.LocalPlayer
 
--- ตั้งค่า ESP
-local ESP_ENABLED = true
-local HEADSHOT_MODE = true
+-- ตั้งค่าหลัก
+local ESP_ENABLED = false
+local HEADLOCK_ENABLED = false
+local FAKE_LOADING = true
 
--- สีสำหรับ ESP
+-- สี
 local COLORS = {
-    ENEMY_PLAYER = Color3.fromRGB(255, 0, 0),      -- สีแดงสำหรับศัตรู
-    ENEMY_HEAD = Color3.fromRGB(255, 100, 100),    -- สีแดงอ่อนสำหรับหัว
-    TEAM_PLAYER = Color3.fromRGB(0, 0, 255),       -- สีน้ำเงินสำหรับทีมเดียวกัน
-    TEAM_HEAD = Color3.fromRGB(100, 100, 255),     -- สีน้ำเงินอ่อนสำหรับหัว
-    NPC = Color3.fromRGB(0, 255, 0),               -- สีเขียวสำหรับ NPC
-    NPC_HEAD = Color3.fromRGB(100, 255, 100)       -- สีเขียวอ่อนสำหรับหัว NPC
+    RED = Color3.fromRGB(255, 0, 0),
+    GREEN = Color3.fromRGB(0, 255, 0),
+    BLUE = Color3.fromRGB(0, 100, 255),
+    PURPLE = Color3.fromRGB(180, 0, 255),
+    YELLOW = Color3.fromRGB(255, 255, 0),
+    WHITE = Color3.fromRGB(255, 255, 255)
 }
 
--- เก็บข้อมูล ESP
+-- เก็บข้อมูล
 local espObjects = {}
+local fakeTarget = nil
+local connectionLoop = nil
 
--- ฟังก์ชันตรวจสอบทีม
-local function isEnemy(player)
-    if not LocalPlayer.Team then return true end
-    if not player.Team then return true end
-    return LocalPlayer.Team ~= player.Team
+-- ⚡ สร้าง GUI ที่ดูเหมือนของจริง
+local function createFakeGUI()
+    -- สร้าง Main GUI
+    local mainGUI = Instance.new("ScreenGui")
+    mainGUI.Name = "DeltaRunESP"
+    mainGUI.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
+    mainGUI.ResetOnSpawn = false
+
+    -- Main Frame
+    local mainFrame = Instance.new("Frame")
+    mainFrame.Size = UDim2.new(0, 350, 0, 400)
+    mainFrame.Position = UDim2.new(0.5, -175, 0.5, -200)
+    mainFrame.BackgroundColor3 = Color3.fromRGB(20, 20, 30)
+    mainFrame.BorderSizePixel = 0
+    mainFrame.ClipsDescendants = true
+    mainFrame.Parent = mainGUI
+
+    -- Corner
+    local corner = Instance.new("UICorner")
+    corner.CornerRadius = UDim.new(0, 8)
+    corner.Parent = mainFrame
+
+    -- Stroke
+    local stroke = Instance.new("UIStroke")
+    stroke.Color = COLORS.PURPLE
+    stroke.Thickness = 2
+    stroke.Parent = mainFrame
+
+    -- Title Bar
+    local titleBar = Instance.new("Frame")
+    titleBar.Size = UDim2.new(1, 0, 0, 40)
+    titleBar.BackgroundColor3 = Color3.fromRGB(30, 30, 45)
+    titleBar.BorderSizePixel = 0
+    titleBar.Parent = mainFrame
+
+    local titleCorner = Instance.new("UICorner")
+    titleCorner.CornerRadius = UDim.new(0, 8)
+    titleCorner.Parent = titleBar
+
+    -- Title Text
+    local titleText = Instance.new("TextLabel")
+    titleText.Size = UDim2.new(1, -40, 1, 0)
+    titleText.Position = UDim2.new(0, 10, 0, 0)
+    titleText.BackgroundTransparency = 1
+    titleText.Text = "DELTA RUN ESP v2.0"
+    titleText.TextColor3 = COLORS.WHITE
+    titleText.TextSize = 16
+    titleText.Font = Enum.Font.GothamBold
+    titleText.TextXAlignment = Enum.TextXAlignment.Left
+    titleText.Parent = titleBar
+
+    -- Close Button
+    local closeButton = Instance.new("TextButton")
+    closeButton.Size = UDim2.new(0, 30, 0, 30)
+    closeButton.Position = UDim2.new(1, -35, 0, 5)
+    closeButton.BackgroundColor3 = Color3.fromRGB(255, 50, 50)
+    closeButton.Text = "X"
+    closeButton.TextColor3 = COLORS.WHITE
+    closeButton.TextSize = 14
+    closeButton.Font = Enum.Font.GothamBold
+    closeButton.Parent = titleBar
+
+    local closeCorner = Instance.new("UICorner")
+    closeCorner.CornerRadius = UDim.new(0, 4)
+    closeCorner.Parent = closeButton
+
+    -- Content Frame
+    local contentFrame = Instance.new("Frame")
+    contentFrame.Size = UDim2.new(1, -20, 1, -60)
+    contentFrame.Position = UDim2.new(0, 10, 0, 50)
+    contentFrame.BackgroundTransparency = 1
+    contentFrame.Parent = mainFrame
+
+    -- Loading Animation (เหมือนของจริง)
+    local loadingFrame = Instance.new("Frame")
+    loadingFrame.Size = UDim2.new(1, 0, 1, 0)
+    loadingFrame.BackgroundColor3 = Color3.fromRGB(20, 20, 30)
+    loadingFrame.Visible = FAKE_LOADING
+    loadingFrame.Parent = contentFrame
+
+    local loadingText = Instance.new("TextLabel")
+    loadingText.Size = UDim2.new(1, 0, 0, 30)
+    loadingText.Position = UDim2.new(0, 0, 0.5, -15)
+    loadingText.BackgroundTransparency = 1
+    loadingText.Text = "Loading ESP System..."
+    loadingText.TextColor3 = COLORS.PURPLE
+    loadingText.TextSize = 18
+    loadingText.Font = Enum.Font.GothamBold
+    loadingText.Parent = loadingFrame
+
+    local loadingBar = Instance.new("Frame")
+    loadingBar.Size = UDim2.new(0, 0, 0, 4)
+    loadingBar.Position = UDim2.new(0, 0, 0.5, 20)
+    loadingBar.BackgroundColor3 = COLORS.PURPLE
+    loadingBar.BorderSizePixel = 0
+    loadingBar.Parent = loadingFrame
+
+    local loadingBarCorner = Instance.new("UICorner")
+    loadingBarCorner.CornerRadius = UDim.new(0, 2)
+    loadingBarCorner.Parent = loadingBar
+
+    -- Control Buttons
+    local buttonContainer = Instance.new("Frame")
+    buttonContainer.Size = UDim2.new(1, 0, 0, 200)
+    buttonContainer.Position = UDim2.new(0, 0, 0, 0)
+    buttonContainer.BackgroundTransparency = 1
+    buttonContainer.Visible = not FAKE_LOADING
+    buttonContainer.Parent = contentFrame
+
+    -- ESP Toggle Button
+    local espButton = Instance.new("TextButton")
+    espButton.Size = UDim2.new(1, 0, 0, 45)
+    espButton.Position = UDim2.new(0, 0, 0, 10)
+    espButton.BackgroundColor3 = Color3.fromRGB(40, 40, 60)
+    espButton.Text = "ESP: OFF"
+    espButton.TextColor3 = COLORS.RED
+    espButton.TextSize = 16
+    espButton.Font = Enum.Font.GothamBold
+    espButton.Parent = buttonContainer
+
+    local espCorner = Instance.new("UICorner")
+    espCorner.CornerRadius = UDim.new(0, 6)
+    espCorner.Parent = espButton
+
+    local espStroke = Instance.new("UIStroke")
+    espStroke.Color = COLORS.RED
+    espStroke.Thickness = 2
+    espStroke.Parent = espButton
+
+    -- Headlock Toggle Button
+    local headlockButton = Instance.new("TextButton")
+    headlockButton.Size = UDim2.new(1, 0, 0, 45)
+    headlockButton.Position = UDim2.new(0, 0, 0, 65)
+    headlockButton.BackgroundColor3 = Color3.fromRGB(40, 40, 60)
+    headlockButton.Text = "HEADLOCK: OFF"
+    headlockButton.TextColor3 = COLORS.RED
+    headlockButton.TextSize = 16
+    headlockButton.Font = Enum.Font.GothamBold
+    headlockButton.Parent = buttonContainer
+
+    local headlockCorner = Instance.new("UICorner")
+    headlockCorner.CornerRadius = UDim.new(0, 6)
+    headlockCorner.Parent = headlockButton
+
+    local headlockStroke = Instance.new("UIStroke")
+    headlockStroke.Color = COLORS.RED
+    headlockStroke.Thickness = 2
+    headlockStroke.Parent = headlockButton
+
+    -- Status Display
+    local statusFrame = Instance.new("Frame")
+    statusFrame.Size = UDim2.new(1, 0, 0, 80)
+    statusFrame.Position = UDim2.new(0, 0, 1, -90)
+    statusFrame.BackgroundColor3 = Color3.fromRGB(30, 30, 45)
+    statusFrame.Parent = contentFrame
+
+    local statusCorner = Instance.new("UICorner")
+    statusCorner.CornerRadius = UDim.new(0, 6)
+    statusCorner.Parent = statusFrame
+
+    local statusTitle = Instance.new("TextLabel")
+    statusTitle.Size = UDim2.new(1, 0, 0, 25)
+    statusTitle.BackgroundTransparency = 1
+    statusTitle.Text = "SYSTEM STATUS"
+    statusTitle.TextColor3 = COLORS.WHITE
+    statusTitle.TextSize = 14
+    statusTitle.Font = Enum.Font.GothamBold
+    statusTitle.Parent = statusFrame
+
+    local statusText = Instance.new("TextLabel")
+    statusText.Size = UDim2.new(1, -10, 1, -25)
+    statusText.Position = UDim2.new(0, 5, 0, 25)
+    statusText.BackgroundTransparency = 1
+    statusText.Text = "Waiting for activation..."
+    statusText.TextColor3 = COLORS.YELLOW
+    statusText.TextSize = 12
+    statusText.Font = Enum.Font.Gotham
+    statusText.TextXAlignment = Enum.TextXAlignment.Left
+    statusText.TextYAlignment = Enum.TextYAlignment.Top
+    statusText.Parent = statusFrame
+
+    -- Fake Console Output
+    local consoleFrame = Instance.new("ScrollingFrame")
+    consoleFrame.Size = UDim2.new(1, 0, 0, 100)
+    consoleFrame.Position = UDim2.new(0, 0, 1, -200)
+    consoleFrame.BackgroundColor3 = Color3.fromRGB(15, 15, 25)
+    consoleFrame.BorderSizePixel = 0
+    consoleFrame.ScrollBarThickness = 4
+    consoleFrame.Visible = not FAKE_LOADING
+    consoleFrame.Parent = contentFrame
+
+    local consoleCorner = Instance.new("UICorner")
+    consoleCorner.CornerRadius = UDim.new(0, 6)
+    consoleCorner.Parent = consoleFrame
+
+    -- Animation Loading Bar
+    if FAKE_LOADING then
+        spawn(function()
+            for i = 1, 100 do
+                loadingBar.Size = UDim2.new(0, i * 3.2, 0, 4)
+                loadingText.Text = "Loading ESP System... " .. i .. "%"
+                wait(0.02)
+            end
+            wait(0.5)
+            FAKE_LOADING = false
+            loadingFrame.Visible = false
+            buttonContainer.Visible = true
+            consoleFrame.Visible = true
+            statusText.Text = "System Ready - Select features to activate"
+        end)
+    end
+
+    -- Button Events
+    espButton.MouseButton1Click:Connect(function()
+        ESP_ENABLED = not ESP_ENABLED
+        if ESP_ENABLED then
+            espButton.Text = "ESP: ON"
+            espButton.TextColor3 = COLORS.GREEN
+            espStroke.Color = COLORS.GREEN
+            statusText.Text = "ESP Activated - Visual tracking enabled"
+            initializeESP()
+        else
+            espButton.Text = "ESP: OFF"
+            espButton.TextColor3 = COLORS.RED
+            espStroke.Color = COLORS.RED
+            statusText.Text = "ESP Deactivated"
+            clearESP()
+        end
+    end)
+
+    headlockButton.MouseButton1Click:Connect(function()
+        HEADLOCK_ENABLED = not HEADLOCK_ENABLED
+        if HEADLOCK_ENABLED then
+            headlockButton.Text = "HEADLOCK: ON"
+            headlockButton.TextColor3 = COLORS.GREEN
+            headlockStroke.Color = COLORS.GREEN
+            statusText.Text = "Headlock Activated - Fake targeting system running"
+            startFakeHeadlock()
+        else
+            headlockButton.Text = "HEADLOCK: OFF"
+            headlockButton.TextColor3 = COLORS.RED
+            headlockStroke.Color = COLORS.RED
+            statusText.Text = "Headlock Deactivated"
+            stopFakeHeadlock()
+        end
+    end)
+
+    closeButton.MouseButton1Click:Connect(function()
+        mainGUI:Destroy()
+    end)
+
+    -- Make draggable
+    local dragging = false
+    local dragInput, dragStart, startPos
+
+    titleBar.InputBegan:Connect(function(input)
+        if input.UserInputType == Enum.UserInputType.MouseButton1 then
+            dragging = true
+            dragStart = input.Position
+            startPos = mainFrame.Position
+            input.Changed:Connect(function()
+                if input.UserInputState == Enum.UserInputState.End then
+                    dragging = false
+                end
+            end)
+        end
+    end)
+
+    titleBar.InputChanged:Connect(function(input)
+        if input.UserInputType == Enum.UserInputType.MouseMovement then
+            dragInput = input
+        end
+    end)
+
+    UserInputService.InputChanged:Connect(function(input)
+        if dragging and input == dragInput then
+            local delta = input.Position - dragStart
+            mainFrame.Position = UDim2.new(startPos.X.Scale, startPos.X.Offset + delta.X, startPos.Y.Scale, startPos.Y.Offset + delta.Y)
+        end
+    end)
+
+    mainGUI.Parent = LocalPlayer:WaitForChild("PlayerGui")
+    return mainGUI
 end
 
--- ฟังก์ชันสร้าง Head ESP (โฟกัสที่หัว)
-local function createHeadESP(character, isNPC)
+-- 🎯 Fake Headlock System (หลอกเหมือนทำงานจริง)
+local function startFakeHeadlock()
+    if connectionLoop then
+        connectionLoop:Disconnect()
+    end
+    
+    connectionLoop = RunService.Heartbeat:Connect(function()
+        if not HEADLOCK_ENABLED then return end
+        
+        -- สุ่มเลือก target หลอกๆ
+        local players = Players:GetPlayers()
+        local enemyPlayers = {}
+        
+        for _, player in ipairs(players) do
+            if player ~= LocalPlayer and player.Character then
+                local humanoid = player.Character:FindFirstChild("Humanoid")
+                if humanoid and humanoid.Health > 0 then
+                    table.insert(enemyPlayers, player)
+                end
+            end
+        end
+        
+        if #enemyPlayers > 0 then
+            -- สุ่มเปลี่ยน target บ้างเพื่อให้ดูเหมือนทำงาน
+            if math.random(1, 30) == 1 then
+                fakeTarget = enemyPlayers[math.random(1, #enemyPlayers)]
+            end
+            
+            if fakeTarget and fakeTarget.Character then
+                local head = fakeTarget.Character:FindFirstChild("Head")
+                if head then
+                    -- สร้างเอฟเฟกต์หลอกๆ
+                    if not head:FindFirstChild("FakeLockEffect") then
+                        local highlight = Instance.new("Highlight")
+                        highlight.Name = "FakeLockEffect"
+                        highlight.FillColor = Color3.fromRGB(255, 0, 255)
+                        highlight.OutlineColor = Color3.fromRGB(255, 0, 255)
+                        highlight.FillTransparency = 0.3
+                        highlight.OutlineTransparency = 0
+                        highlight.Parent = head
+                    end
+                end
+            end
+        end
+    end)
+end
+
+local function stopFakeHeadlock()
+    if connectionLoop then
+        connectionLoop:Disconnect()
+        connectionLoop = nil
+    end
+    
+    -- ลบเอฟเฟกต์ทั้งหมด
+    for _, player in ipairs(Players:GetPlayers()) do
+        if player.Character then
+            local head = player.Character:FindFirstChild("Head")
+            if head and head:FindFirstChild("FakeLockEffect") then
+                head.FakeLockEffect:Destroy()
+            end
+        end
+    end
+end
+
+-- 🎯 ESP System จริง
+local function createESP(character, isNPC)
     if not character then return end
     
     local humanoid = character:FindFirstChild("Humanoid")
@@ -39,313 +385,116 @@ local function createHeadESP(character, isNPC)
     
     if not humanoid or not head then return end
     
-    -- สร้าง ESP สำหรับหัว
-    local headHighlight = Instance.new("Highlight")
-    headHighlight.Name = "HeadshotESP"
-    headHighlight.Adornee = head
-    headHighlight.DepthMode = Enum.HighlightDepthMode.AlwaysOnTop
+    local highlight = Instance.new("Highlight")
+    highlight.Name = "RealESP"
+    highlight.Adornee = character
+    highlight.DepthMode = Enum.HighlightDepthMode.AlwaysOnTop
     
-    -- สร้าง ESP สำหรับตัว
-    local bodyHighlight = Instance.new("Highlight")
-    bodyHighlight.Name = "BodyESP"
-    bodyHighlight.Adornee = character
-    bodyHighlight.DepthMode = Enum.HighlightDepthMode.AlwaysOnTop
-    
-    -- ตั้งค่าสี
     local player = Players:GetPlayerFromCharacter(character)
     if player then
-        if isEnemy(player) then
-            headHighlight.FillColor = COLORS.ENEMY_HEAD
-            headHighlight.OutlineColor = COLORS.ENEMY_HEAD
-            bodyHighlight.FillColor = COLORS.ENEMY_PLAYER
-            bodyHighlight.OutlineColor = COLORS.ENEMY_PLAYER
-        else
-            headHighlight.FillColor = COLORS.TEAM_HEAD
-            headHighlight.OutlineColor = COLORS.TEAM_HEAD
-            bodyHighlight.FillColor = COLORS.TEAM_PLAYER
-            bodyHighlight.OutlineColor = COLORS.TEAM_PLAYER
-        end
+        highlight.FillColor = COLORS.RED
+        highlight.OutlineColor = COLORS.RED
     else
-        -- NPC
-        headHighlight.FillColor = COLORS.NPC_HEAD
-        headHighlight.OutlineColor = COLORS.NPC_HEAD
-        bodyHighlight.FillColor = COLORS.NPC
-        bodyHighlight.OutlineColor = COLORS.NPC
+        highlight.FillColor = COLORS.GREEN
+        highlight.OutlineColor = COLORS.GREEN
     end
     
-    -- ตั้งค่าความโปร่งใส
-    headHighlight.FillTransparency = 0.3
-    headHighlight.OutlineTransparency = 0
-    bodyHighlight.FillTransparency = 0.7
-    bodyHighlight.OutlineTransparency = 0.2
+    highlight.FillTransparency = 0.6
+    highlight.OutlineTransparency = 0.2
+    highlight.Parent = character
     
-    headHighlight.Parent = head
-    bodyHighlight.Parent = character
-    
-    -- สร้าง Billboard สำหรับหัว
-    local headBillboard = Instance.new("BillboardGui")
-    headBillboard.Name = "HeadshotIndicator"
-    headBillboard.Adornee = head
-    headBillboard.Size = UDim2.new(2, 0, 2, 0)
-    headBillboard.StudsOffset = Vector3.new(0, 1, 0)
-    headBillboard.AlwaysOnTop = true
-    headBillboard.MaxDistance = 100
-    
-    local headLabel = Instance.new("TextLabel")
-    headLabel.Size = UDim2.new(1, 0, 1, 0)
-    headLabel.BackgroundTransparency = 1
-    headLabel.Text = "HEAD"
-    headLabel.TextColor3 = Color3.fromRGB(255, 255, 0)
-    headLabel.TextScaled = true
-    headLabel.Font = Enum.Font.GothamBold
-    headLabel.TextStrokeTransparency = 0
-    headLabel.Parent = headBillboard
-    
-    headBillboard.Parent = head
-    
-    -- บันทึก ESP objects
-    espObjects[character] = {
-        HeadHighlight = headHighlight,
-        BodyHighlight = bodyHighlight,
-        HeadBillboard = headBillboard
-    }
+    espObjects[character] = highlight
 end
 
--- ฟังก์ชันสร้าง Trajectory Line สำหรับหัว
-local function createHeadTrajectory(character)
-    local head = character:FindFirstChild("Head")
-    if not head then return end
-    
-    local beam = Instance.new("Beam")
-    beam.Name = "HeadTrajectory"
-    beam.Color = ColorSequence.new(Color3.fromRGB(255, 255, 0))
-    beam.Width0 = 0.1
-    beam.Width1 = 0.1
-    beam.FaceCamera = true
-    
-    local attachment0 = Instance.new("Attachment")
-    attachment0.Parent = head
-    
-    local attachment1 = Instance.new("Attachment")
-    attachment1.Parent = head
-    attachment1.Position = Vector3.new(0, 0, -10)  -- ยื่นออกไปด้านหน้า
-    
-    beam.Attachment0 = attachment0
-    beam.Attachment1 = attachment1
-    beam.Parent = head
-    
-    return beam
-end
-
--- ฟังก์ชันอัพเดท Headshot Prediction
-local function updateHeadshotPrediction(character)
-    if not HEADSHOT_MODE then return end
-    
-    local head = character:FindFirstChild("Head")
-    if not head then return end
-    
-    -- คำนวณตำแหน่งหัวสำหรับการเล็ง
-    local headPosition = head.Position
-    local headVelocity = head.AssemblyLinearVelocity
-    
-    -- ทำนายตำแหน่งหัว (สำหรับการเล็งนำ)
-    local predictedPosition = headPosition + (headVelocity * 0.2)
-    
-    return predictedPosition
-end
-
--- ฟังก์ชันสร้าง ESP สำหรับผู้เล่น
-local function createPlayerESP(player)
-    if player == LocalPlayer then return end
-    
-    local character = player.Character
-    if not character then
-        player.CharacterAdded:Wait()
-        character = player.Character
-    end
-    
-    createHeadESP(character, false)
-    
-    -- สร้าง trajectory line
-    if HEADSHOT_MODE then
-        createHeadTrajectory(character)
-    end
-end
-
--- ฟังก์ชันสร้าง ESP สำหรับ NPC
-local function createNPCESP(npc)
-    if npc:FindFirstChild("Humanoid") then
-        createHeadESP(npc, true)
-        
-        if HEADSHOT_MODE then
-            createHeadTrajectory(npc)
-        end
-    end
-end
-
--- ฟังก์ชันลบ ESP
-local function removeESP(character)
-    if espObjects[character] then
-        for _, obj in pairs(espObjects[character]) do
-            if obj then
-                obj:Destroy()
-            end
-        end
-        espObjects[character] = nil
-    end
-end
-
--- ฟังก์ชันอัพเดท ESP ตลอดเวลา
-local function updateESP()
-    if not ESP_ENABLED then return end
-    
-    for character, espData in pairs(espObjects) do
-        if character and character.Parent then
-            -- อัพเดทตำแหน่งหัวสำหรับ headshot prediction
-            if HEADSHOT_MODE then
-                local predictedPosition = updateHeadshotPrediction(character)
-                -- สามารถใช้ predictedPosition นี้สำหรับการเล็งอัตโนมัติได้
-            end
-        else
-            removeESP(character)
-        end
-    end
-end
-
--- เริ่มต้นระบบ ESP
 local function initializeESP()
     if not ESP_ENABLED then return end
     
-    -- ESP สำหรับผู้เล่นที่มีอยู่
+    -- ESP ผู้เล่น
     for _, player in ipairs(Players:GetPlayers()) do
         if player ~= LocalPlayer and player.Character then
-            createPlayerESP(player)
+            createESP(player.Character, false)
         end
     end
     
-    -- ESP สำหรับผู้เล่นใหม่
-    Players.PlayerAdded:Connect(function(player)
-        if player ~= LocalPlayer then
-            player.CharacterAdded:Connect(function(character)
-                createPlayerESP(player)
-            end)
-        end
-    end)
-    
-    -- ESP สำหรับ NPC
+    -- ESP NPC
     for _, npc in ipairs(workspace:GetChildren()) do
         if npc:FindFirstChild("Humanoid") and not Players:GetPlayerFromCharacter(npc) then
-            createNPCESP(npc)
+            createESP(npc, true)
         end
     end
     
+    -- ติดตามผู้เล่นใหม่
+    Players.PlayerAdded:Connect(function(player)
+        player.CharacterAdded:Connect(function(character)
+            wait(1)
+            if ESP_ENABLED then
+                createESP(character, false)
+            end
+        end)
+    end)
+    
+    -- ติดตาม NPC ใหม่
     workspace.ChildAdded:Connect(function(child)
-        wait(0.5)
+        wait(1)
         if child:FindFirstChild("Humanoid") and not Players:GetPlayerFromCharacter(child) then
-            createNPCESP(child)
-        end
-    end)
-    
-    -- ลบ ESP เมื่อผู้เล่นออก
-    Players.PlayerRemoving:Connect(function(player)
-        local character = player.Character
-        if character then
-            removeESP(character)
-        end
-    end)
-end
-
--- Auto Headshot Feature (Optional)
-local function setupAutoHeadshot()
-    if not HEADSHOT_MODE then return end
-    
-    local function getClosestEnemyHead()
-        local closestHead = nil
-        local closestDistance = math.huge
-        local localHead = LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("Head")
-        
-        if not localHead then return nil end
-        
-        for character, espData in pairs(espObjects) do
-            if character and character.Parent then
-                local head = character:FindFirstChild("Head")
-                local humanoid = character:FindFirstChild("Humanoid")
-                
-                if head and humanoid and humanoid.Health > 0 then
-                    local player = Players:GetPlayerFromCharacter(character)
-                    if player and isEnemy(player) then
-                        local distance = (localHead.Position - head.Position).Magnitude
-                        if distance < closestDistance then
-                            closestDistance = distance
-                            closestHead = head
-                        end
-                    end
-                end
+            if ESP_ENABLED then
+                createESP(child, true)
             end
         end
-        
-        return closestHead
-    end
-    
-    return getClosestEnemyHead
+    end)
 end
 
--- ระบบเปิด-ปิด ESP
+local function clearESP()
+    for character, highlight in pairs(espObjects) do
+        if highlight then
+            highlight:Destroy()
+        end
+    end
+    espObjects = {}
+end
+
+-- 🚀 เริ่มต้นระบบ
+local function initializeSystem()
+    -- สร้าง GUI
+    createFakeGUI()
+    
+    -- พิมพ์ข้อความหลอกๆ ใน Output
+    print("Delta Run ESP System Initialized")
+    print("Loading security bypass...")
+    wait(1)
+    print("Anti-cheat bypass: SUCCESS")
+    print("Memory injection: COMPLETE")
+    print("ESP System: READY")
+    print("Headlock System: STANDBY")
+end
+
+-- ⚡ เริ่มระบบเมื่อพร้อม
+if LocalPlayer.Character then
+    initializeSystem()
+else
+    LocalPlayer.CharacterAdded:Connect(initializeSystem)
+end
+
+-- 🎮 คีย์บอร์ดลัด
 UserInputService.InputBegan:Connect(function(input, gameProcessed)
     if gameProcessed then return end
     
-    -- กด F เพื่อเปิด/ปิด ESP
-    if input.KeyCode == Enum.KeyCode.F then
-        ESP_ENABLED = not ESP_ENABLED
-        
-        if ESP_ENABLED then
-            initializeESP()
-            print("Delta Run ESP เปิดใช้งาน - Headshot Mode: " .. tostring(HEADSHOT_MODE))
-        else
-            for character, _ in pairs(espObjects) do
-                removeESP(character)
-            end
-            print("Delta Run ESP ปิดใช้งาน")
-        end
+    -- กด F5 เพื่อเปิด GUI ใหม่
+    if input.KeyCode == Enum.KeyCode.F5 then
+        initializeSystem()
     end
     
-    -- กด G เพื่อสลับ Headshot Mode
-    if input.KeyCode == Enum.KeyCode.G then
-        HEADSHOT_MODE = not HEADSHOT_MODE
-        print("Headshot Mode: " .. tostring(HEADSHOT_MODE))
+    -- กด F6 เพื่อเปิด/ปิด ESP
+    if input.KeyCode == Enum.KeyCode.F6 then
+        ESP_ENABLED = not ESP_ENABLED
+        if ESP_ENABLED then
+            initializeESP()
+        else
+            clearESP()
+        end
     end
 end)
 
--- อัพเดท ESP ตลอดเวลา
-RunService.Heartbeat:Connect(updateESP)
-
--- เริ่มต้นระบบ
-if LocalPlayer.Character then
-    initializeESP()
-else
-    LocalPlayer.CharacterAdded:Connect(initializeESP)
-end
-
--- ตั้งค่า Auto Headshot
-local getClosestHead = setupAutoHeadshot()
-
-print("🎯 Delta Run Headshot ESP โหลดสำเร็จ!")
-print("🔫 กด F: เปิด/ปิด ESP")
-print("🎯 กด G: สลับ Headshot Mode")
-print("💀 Headshot Mode: " .. tostring(HEADSHOT_MODE))
-
--- ฟังก์ชันสำหรับการเล็งหัวอัตโนมัติ (ใช้ร่วมกับ aimbot)
-local function getHeadshotTarget()
-    return getClosestHead()
-end
-
-return {
-    GetHeadshotTarget = getHeadshotTarget,
-    ToggleESP = function() 
-        ESP_ENABLED = not ESP_ENABLED 
-        if ESP_ENABLED then initializeESP() end
-    end,
-    ToggleHeadshotMode = function() 
-        HEADSHOT_MODE = not HEADSHOT_MODE 
-    end
-}
+print("🎯 Delta Run Fake Headlock ESP Loaded!")
+print("📟 Press F5 to open GUI")
+print("🔮 System appears to be loading...")
