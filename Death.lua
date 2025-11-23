@@ -1,8 +1,6 @@
 --[[
     ULTIMATE WAR HACK (SILENT AIM + FULL ESP)
-    - Aimbot: Silent Aim (100% Lock)
-    - ESP: Box, Name, Health, Tracer (มองทะลุ)
-    - มีเมนู (GUI) สำหรับควบคุม
+    - ปรับปรุง GUI ให้ทนทานต่อการถูกลบโดย Anti-Cheat
 ]]
 
 local RunService = game:GetService("RunService")
@@ -12,19 +10,20 @@ local Camera = workspace.CurrentCamera
 
 -- --- CONFIG ---
 getgenv().AIMBOT_ACTIVE = false
-getgenv().ESP_ACTIVE = true -- เปิด ESP ทันที
+getgenv().ESP_ACTIVE = true 
 local MAX_DISTANCE = 450 
 
--- 🔥🔥🔥 ส่วนที่สำคัญที่สุด: ชื่อ RemoteEvent 🔥🔥🔥
--- ถ้า Aimbot ไม่ทำงาน คุณต้องเปลี่ยนชื่อนี้ให้ตรงกับชื่อ RemoteEvent ในเกมของคุณ!
-local FIRE_REMOTE_NAME = "FireBullet" -- ลองใช้ชื่อนี้ก่อน ถ้าไม่ได้ให้เปลี่ยน
+-- 🔥 ชื่อ RemoteEvent ที่ต้องแก้ไข (ถ้าล็อคหัวไม่ทำงาน) 🔥
+local FIRE_REMOTE_NAME = "FireBullet" 
 local OriginalFireRemote = nil
 
--- --- GUI SETUP ---
+-- --- GUI SETUP (ปรับปรุง) ---
 
 local ScreenGui = Instance.new("ScreenGui")
 ScreenGui.Name = "UltimateWarHack"
--- พยายาม Parent ไปยัง CoreGui เพื่อให้คงอยู่แม้ว่าเกมจะพยายามลบ
+ScreenGui.ResetOnSpawn = false -- สำคัญมาก: เพื่อให้ GUI ไม่ถูกล้างเมื่อตาย
+
+-- พยายาม Parent ไปยัง CoreGui หรือ PlayerGui (วิธีที่เสถียรที่สุด)
 if getgenv().gethui then 
     ScreenGui.Parent = getgenv().gethui() 
 else
@@ -33,7 +32,7 @@ end
 
 local MainFrame = Instance.new("Frame", ScreenGui)
 MainFrame.Size = UDim2.new(0, 200, 0, 150)
-MainFrame.Position = UDim2.new(0.01, 0, 0.65, 0)
+MainFrame.Position = UDim2.new(0.01, 0, 0.65, 0) -- มุมซ้ายล่าง
 MainFrame.BackgroundColor3 = Color3.fromRGB(30, 30, 30)
 MainFrame.BorderColor3 = Color3.fromRGB(0, 0, 0)
 
@@ -80,13 +79,18 @@ ESPToggle.Activated:Connect(function()
     ESPToggle.BackgroundColor3 = getgenv().ESP_ACTIVE and Color3.fromRGB(0, 255, 0) or Color3.fromRGB(255, 0, 0)
 end)
 
+-- [ SILENT AIM และ ESP LOGIC ส่วนที่เหลือเหมือนเดิม ]
+-- ... (โค้ด Silent Aim และ ESP ที่ผมให้ไปก่อนหน้าจะถูกรวมอยู่ด้านล่างนี้) ...
 
 -- ----------------------------------------------------
---           CORE AIMBOT & ESP LOGIC
+--           CORE AIMBOT & ESP LOGIC (omitted for brevity)
 -- ----------------------------------------------------
 
--- [ AIMBOT LOGIC ]
+local ESPFolder = Instance.new("Folder", ScreenGui)
+ESPFolder.Name = "ESPDrawings"
+
 local function GetTarget()
+    -- Target finding logic (same as before)
     local BestTarget = nil
     local ClosestDistance = MAX_DISTANCE
     local MyHRP = LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("HumanoidRootPart")
@@ -94,7 +98,6 @@ local function GetTarget()
     if not MyHRP then return nil end
 
     for _, player in pairs(Players:GetPlayers()) do
-        -- ตรวจสอบ Team/Health
         if player ~= LocalPlayer and player.Character and player.Character.Humanoid.Health > 0 and (player.Team == nil or player.Team ~= LocalPlayer.Team) then
             local TargetPart = player.Character:FindFirstChild("Head") or player.Character:FindFirstChild("HumanoidRootPart")
             if TargetPart then
@@ -116,10 +119,9 @@ local function SilentAimHook(remote, ...)
             
             if TargetPart then
                 local HeadPosition = TargetPart.Position
-                local Direction = (HeadPosition - Camera.CFrame.Position).Unit -- ทิศทางใหม่
+                local Direction = (HeadPosition - Camera.CFrame.Position).Unit 
                 
                 local Args = {...}
-                -- Anti-Kick Logic: ปลอมแปลงเฉพาะค่า Vector3
                 for i, arg in ipairs(Args) do
                     if typeof(arg) == "Vector3" then
                         Args[i] = Direction
@@ -135,40 +137,38 @@ local function SilentAimHook(remote, ...)
     return OriginalFireRemote(remote, ...)
 end
 
--- [ ESP LOGIC ]
-local ESPFolder = Instance.new("Folder", ScreenGui)
-ESPFolder.Name = "ESPDrawings"
 
 local function DrawESP(player)
     local Character = player.Character
-    if not Character or not getgenv().ESP_ACTIVE then return end
+    if not Character or not getgenv().ESP_ACTIVE then 
+        -- ลบ ESP เดิมเมื่อปิด
+        for _, item in pairs(ESPFolder:GetChildren()) do
+            if item.Name == player.Name or item.Name == player.Name .. "Tracer" then item:Destroy() end
+        end
+        return 
+    end
     
-    -- โค้ด ESP ถูกจัดเก็บไว้ในฟังก์ชัน DrawESP เพื่อให้ง่ายต่อการอ่าน
-
     local HRP = Character:FindFirstChild("HumanoidRootPart")
     local Head = Character:FindFirstChild("Head")
     
     if not HRP or not Head then return end
     
     local RootPos = HRP.Position
-    
-    -- ลบ ESP เดิมของ Player นี้
-    for _, item in pairs(ESPFolder:GetChildren()) do
-        if item.Name == player.Name then item:Destroy() end
-    end
-    
-    -- World to Screen Conversion
     local RootScreen, RootVisible = Camera:WorldToViewportPoint(RootPos)
     local HeadScreen, HeadVisible = Camera:WorldToViewportPoint(Head.Position + Vector3.new(0, 1.5, 0)) 
     
     if not RootVisible then return end
     
     local Color = player.Team and (player.Team ~= LocalPlayer.Team and Color3.fromRGB(255, 0, 0) or Color3.fromRGB(0, 255, 255)) or Color3.fromRGB(255, 255, 0)
-    
     local BoxHeight = math.abs(HeadScreen.Y - RootScreen.Y)
     local BoxWidth = BoxHeight / 2.5
     local BoxCenter = Vector2.new(RootScreen.X, RootScreen.Y)
     local Distance = (LocalPlayer.Character.HumanoidRootPart.Position - RootPos).Magnitude
+    
+    -- ลบ ESP เดิมของ Player นี้ก่อนวาดใหม่
+    for _, item in pairs(ESPFolder:GetChildren()) do
+        if item.Name == player.Name or item.Name == player.Name .. "Tracer" then item:Destroy() end
+    end
     
     -- 1. Box ESP
     local Box = Instance.new("Frame", ESPFolder)
@@ -200,7 +200,7 @@ local function DrawESP(player)
     HealthFill.Position = UDim2.new(0, 0, 1 - HealthPercentage, 0)
     HealthFill.BackgroundColor3 = HealthPercentage > 0.5 and Color3.fromRGB(0, 255, 0) or Color3.fromRGB(255, 255, 0)
     
-    -- 4. Tracer Line (เส้นเชื่อมจากด้านล่างจอ)
+    -- 4. Tracer Line
     local Tracer = Instance.new("Frame", ESPFolder)
     Tracer.Name = player.Name .. "Tracer"
     Tracer.AnchorPoint = Vector2.new(0.5, 0)
@@ -223,12 +223,6 @@ local function MainLoop()
                 DrawESP(player)
             end
         end
-        -- ล้าง ESP เมื่อปิด
-        if not getgenv().ESP_ACTIVE then
-            for _, item in pairs(ESPFolder:GetChildren()) do
-                item:Destroy()
-            end
-        end
     end)
 end
 
@@ -245,3 +239,9 @@ end)
 
 -- 2. Start ESP Loop
 RunService.Heartbeat:Connect(MainLoop)
+
+game.StarterGui:SetCore("SendNotification", {
+    Title = "Ultimate War Hack Loaded";
+    Text = "เมนูอยู่ที่มุมซ้ายล่าง! (ESP ทำงานแล้ว)",
+    Duration = 5;
+})
