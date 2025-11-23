@@ -1,206 +1,81 @@
--- Speed Hack + GUI แก้ไขแล้ว แสดงแน่นอน 100% (Delta Executor)
--- แก้ปัญหา GUI ไม่โผล่ / มองไม่เห็นgg
+-- Speed + Infinite Jump GUI (สั้นมาก ลากได้ 100% Delta)
+-- ปุ่มฟ้ามุมขวาล่าง → Panel: Speed Slider + ON/OFF Speed + ON/OFF Jump
 
 local Players = game:GetService("Players")
 local Player = Players.LocalPlayer
 local UIS = game:GetService("UserInputService")
-local TweenService = game:GetService("TweenService")
 local RunService = game:GetService("RunService")
 
-local MaxSpeed = 500
-local MinSpeed = 16
-local CurrentSpeed = 50
-local SpeedEnabled = false
+local MaxSpeed=500; local MinSpeed=16; local SpeedVal=50; local SpeedOn=false; local JumpOn=false
 
--- สร้าง ScreenGui วางใน PlayerGui แทน CoreGui (บาง Executor บัง CoreGui)
-local ScreenGui = Instance.new("ScreenGui")
-ScreenGui.Name = "SpeedHackGUI_V2"
-ScreenGui.ResetOnSpawn = false
-ScreenGui.Parent = Player:WaitForChild("PlayerGui")  -- เปลี่ยนตรงนี้สำคัญมาก!
+local SG=Instance.new("ScreenGui",Player.PlayerGui); SG.Name="HackV3"; SG.ResetOnSpawn=false
 
--- ปุ่มเปิด GUI (โผล่ชัดเจนมุมขวาล่าง)
-local OpenButton = Instance.new("TextButton")
-OpenButton.Size = UDim2.new(0, 150, 0, 50)
-OpenButton.Position = UDim2.new(1, -170, 1, -70)
-OpenButton.BackgroundColor3 = Color3.fromRGB(0, 170, 255)
-OpenButton.Text = "เปิด Speed Panel"
-OpenButton.TextColor3 = Color3.new(1,1,1)
-OpenButton.Font = Enum.Font.GothamBold
-OpenButton.TextSize = 18
-OpenButton.Parent = ScreenGui
+-- ปุ่มเปิด (ชัดเจนมุมขวาล่าง)
+local Open=Instance.new("TextButton",SG); Open.Size=UDim2.new(0,140,0,45); Open.Position=UDim2.new(1,-155,1,-60)
+Open.BG=Color3.fromRGB(0,170,255); Open.Text="🚀 Speed+Jump"; Open.TextColor3=Color3.new(1,1,1); Open.Font=Enum.Font.GothamBold; Open.TextSize=16
+local OC=Instance.new("UICorner",Open); OC.CornerRadius=UDim.new(0,10)
 
-local OpenCorner = Instance.new("UICorner")
-OpenCorner.CornerRadius = UDim.new(0, 12)
-OpenCorner.Parent = OpenButton
+-- Panel หลัก (ลากได้)
+local Panel=Instance.new("Frame",SG); Panel.Size=UDim2.new(0,300,0,160); Panel.Position=UDim2.new(0.5,-150,0.5,-80); Panel.Visible=false; Panel.Active=true; Panel.Draggable=true
+Panel.BG=Color3.fromRGB(25,25,35); Panel.BorderSizePixel=2; Panel.BorderColor3=Color3.fromRGB(0,255,200)
+local PC=Instance.new("UICorner",Panel); PC.CornerRadius=UDim.new(0,12)
 
--- หน้าต่างหลัก (ซ่อนไว้ก่อน)
-local MainFrame = Instance.new("Frame")
-MainFrame.Size = UDim2.new(0, 340, 0, 200)
-MainFrame.Position = UDim2.new(0.5, -170, 0.5, -100)
-MainFrame.BackgroundColor3 = Color3.fromRGB(20, 20, 30)
-MainFrame.BorderSizePixel = 2
-MainFrame.BorderColor3 = Color3.fromRGB(0, 255, 200)
-MainFrame.Visible = false
-MainFrame.Active = true
-MainFrame.Draggable = true
-MainFrame.Parent = ScreenGui
+-- Title
+local Title=Instance.new("TextLabel",Panel); Title.Size=UDim2.new(1,0,0,35); Title.BG=Color3.new(0,0,0); Title.Text="⚡ SPEED + JUMP HACK ⚡"; Title.TextColor3=Color3.fromRGB(0,255,200); Title.Font=Enum.Font.GothamBold; Title.TextSize=18
 
-local Corner = Instance.new("UICorner")
-Corner.CornerRadius = UDim.new(0, 15)
-Corner.Parent = MainFrame
+-- ปิด Panel
+local Close=Instance.new("TextButton",Panel); Close.Size=UDim2.new(0,30,0,30); Close.Position=UDim2.new(1,-35,0,2.5); Close.BG=Color3.fromRGB(255,80,80); Close.Text="X"; Close.TextColor3=Color3.new(1,1,1); Close.Font=Enum.Font.GothamBold; Close.TextSize=18; local CC=Instance.new("UICorner",Close); CC.CornerRadius=UDim.new(1,0)
 
--- หัวข้อ
-local Title = Instance.new("TextLabel")
-Title.Size = UDim2.new(1, 0, 0, 45)
-Title.BackgroundTransparency = 1
-Title.Text = "⚡ SPEED HACK ⚡"
-Title.TextColor3 = Color3.fromRGB(0, 255, 200)
-Title.Font = Enum.Font.GothamBold
-Title.TextSize = 22
-Title.Parent = MainFrame
+-- Speed Label + Slider
+local SLabel=Instance.new("TextLabel",Panel); SLabel.Size=UDim2.new(1,-40,0,25); SLabel.Position=UDim2.new(0,20,0,40); SLabel.BG=0; SLabel.Text="Speed: 50"; SLabel.TextColor3=Color3.new(1,1,1); SLabel.Font=Enum.Font.Gotham; SLabel.TextSize=16
+local SBG=Instance.new("Frame",Panel); SBG.Size=UDim2.new(1,-40,0,25); SBG.Position=UDim2.new(0,20,0,70); SBG.BG=Color3.fromRGB(50,50,60); local SBC=Instance.new("UICorner",SBG); SBC.CornerRadius=UDim.new(0,8)
+local SFill=Instance.new("Frame",SBG); SFill.Size=UDim2.new(0.07,0,1,0); SFill.BG=Color3.fromRGB(0,255,200); local SFC=Instance.new("UICorner",SFill); SFC.CornerRadius=UDim.new(0,8)
+local Knob=Instance.new("TextButton",SFill); Knob.Size=UDim2.new(0,28,0,28); Knob.Position=UDim2.new(0,-14,0,-14); Knob.BG=Color3.new(1,1,1); Knob.Text=""; local KC=Instance.new("UICorner",Knob); KC.CornerRadius=UDim.new(1,0)
 
--- ปุ่มปิดหน้าต่าง
-local CloseBtn = Instance.new("TextButton")
-CloseBtn.Size = UDim2.new(0, 35, 0, 35)
-CloseBtn.Position = UDim2.new(1, -40, 0, 5)
-CloseBtn.BackgroundColor3 = Color3.fromRGB(255, 70, 70)
-CloseBtn.Text = "X"
-CloseBtn.TextColor3 = Color3.new(1,1,1)
-CloseBtn.Font = Enum.Font.GothamBold
-CloseBtn.TextSize = 20
-CloseBtn.Parent = MainFrame
-local CloseCorner = Instance.new("UICorner", CloseBtn)
+-- Toggle Speed
+local TSpeed=Instance.new("TextButton",Panel); TSpeed.Size=UDim2.new(0,80,0,35); TSpeed.Position=UDim2.new(0,20,1,-45); TSpeed.BG=Color3.fromRGB(255,80,80); TSpeed.Text="Speed OFF"; TSpeed.TextColor3=Color3.new(1,1,1); TSpeed.Font=Enum.Font.GothamBold; TSpeed.TextSize=14; local TSC=Instance.new("UICorner",TSpeed); TSC.CornerRadius=UDim.new(0,8)
 
-CloseBtn.MouseButton1Click:Connect(function()
-    MainFrame.Visible = false
-    OpenButton.Visible = true
-end)
+-- Toggle Jump
+local TJump=Instance.new("TextButton",Panel); TJump.Size=UDim2.new(0,80,0,35); TJump.Position=UDim2.new(0,110,1,-45); TJump.BG=Color3.fromRGB(255,80,80); TJump.Text="Jump OFF"; TJump.TextColor3=Color3.new(1,1,1); TJump.Font=Enum.Font.GothamBold; TJump.TextSize=14; local TJC=Instance.new("UICorner",TJump); TJC.CornerRadius=UDim.new(0,8)
 
--- แถบแสดงความเร็ว
-local SpeedLabel = Instance.new("TextLabel")
-SpeedLabel.Size = UDim2.new(1, -40, 0, 35)
-SpeedLabel.Position = UDim2.new(0, 20, 0, 50)
-SpeedLabel.BackgroundTransparency = 1
-SpeedLabel.Text = "ความเร็ว: 50"
-SpeedLabel.TextColor3 = Color3.new(1,1,1)
-SpeedLabel.Font = Enum.Font.GothamBold
-SpeedLabel.TextSize = 20
-SpeedLabel.Parent = MainFrame
-
--- Slider
-local SliderBG = Instance.new("Frame")
-SliderBG.Size = UDim2.new(1, -40, 0, 30)
-SliderBG.Position = UDim2.new(0, 20, 0, 100)
-SliderBG.BackgroundColor3 = Color3.fromRGB(50, 50, 60)
-SliderBG.Parent = MainFrame
-local BGC = Instance.new("UICorner")
-BGC.CornerRadius = UDim.new(0, 15)
-BGC.Parent = SliderBG
-
-local SliderFill = Instance.new("Frame")
-SliderFill.Size = UDim2.new(0.1, 0, 1, 0)
-SliderFill.BackgroundColor3 = Color3.fromRGB(0, 255, 200)
-SliderFill.Parent = SliderBG
-local FillC = Instance.new("UICorner")
-FillC.CornerRadius = UDim.new(0, 15)
-FillC.Parent = SliderFill
-
-local Knob = Instance.new("TextButton")
-Knob.Size = UDim2.new(0, 40, 0, 40)
-Knob.Position = UDim2.new(0, -5, 0, -5)
-Knob.BackgroundColor3 = Color3.new(1,1,1)
-Knob.Text = ""
-Knob.Parent = SliderFill
-local KnobC = Instance.new("UICorner")
-KnobC.CornerRadius = UDim.new(1, 0)
-KnobC.Parent = Knob
-
--- ปุ่ม ON/OFF
-local Toggle = Instance.new("TextButton")
-Toggle.Size = UDim2.new(0, 140, 0, 50)
-Toggle.Position = UDim2.new(0.5, -70, 1, -65)
-Toggle.BackgroundColor3 = Color3.fromRGB(255, 80, 80)
-Toggle.Text = "OFF"
-Toggle.TextColor3 = Color3.new(1,1,1)
-Toggle.Font = Enum.Font.GothamBold
-Toggle.TextSize = 24
-Toggle.Parent = MainFrame
-local TC = Instance.new("UICorner")
-TC.CornerRadius = UDim.new(0, 12)
-TC.Parent = Toggle
-
--- ฟังก์ชันอัพเดทความเร็ว
-local function setSpeed(val)
-    CurrentSpeed = val
-    SpeedLabel.Text = "ความเร็ว: " .. val
-    local percent = (val - MinSpeed) / (MaxSpeed - MinSpeed)
-    SliderFill.Size = UDim2.new(percent, 0, 1, 0)
-    Knob.Position = UDim2.new(percent, -5, 0, -5)
-    
-    if Player.Character and Player.Character:FindFirstChild("Humanoid") then
-        Player.Character.Humanoid.WalkSpeed = SpeedEnabled and val or 16
-    end
+-- ฟังก์ชัน Speed
+local function setSpeed(v)
+    SpeedVal=v; SLabel.Text="Speed: "..v
+    local p=(v-MinSpeed)/(MaxSpeed-MinSpeed); SFill.Size=UDim2.new(p,0,1,0); Knob.Position=UDim2.new(p,-14,0,-14)
+    if Player.Character and Player.Character:FindFirstChild("Humanoid") then Player.Character.Humanoid.WalkSpeed=SpeedOn and v or 16 end
 end
 
--- Slider ลากได้
-local dragging = false
-Knob.MouseButton1Down:Connect(function() dragging = true end)
-UIS.InputEnded:Connect(function(i)
-    if i.UserInputType == Enum.UserInputType.MouseButton1 or i.UserInputType == Enum.UserInputType.Touch then
-        dragging = false
-    end
-end)
-
+-- Slider Drag
+local drag=false; Knob.MouseButton1Down:Connect(function() drag=true end)
+UIS.InputEnded:Connect(function(i) if i.UserInputType==Enum.UserInputType.MouseButton1 or i.UserInputType==Enum.UserInputType.Touch then drag=false end end)
 RunService.RenderStepped:Connect(function()
-    if dragging then
-        local mousePos = UIS:GetMouseLocation()
-        local relX = mousePos.X - SliderBG.AbsolutePosition.X
-        local percent = math.clamp(relX / SliderBG.AbsoluteSize.X, 0, 1)
-        local newVal = math.floor(MinSpeed + percent * (MaxSpeed - MinSpeed))
-        setSpeed(newVal)
+    if drag then
+        local mp=UIS:GetMouseLocation(); local rx=mp.X-SBG.AbsolutePosition.X; local p=math.clamp(rx/SBG.AbsoluteSize.X,0,1)
+        setSpeed(math.floor(MinSpeed + p*(MaxSpeed-MinSpeed)))
+    end
+    if SpeedOn and Player.Character and Player.Character:FindFirstChild("Humanoid") and Player.Character.Humanoid.WalkSpeed~=SpeedVal then
+        Player.Character.Humanoid.WalkSpeed=SpeedVal
     end
 end)
 
--- ปุ่ม Toggle
-Toggle.MouseButton1Click:Connect(function()
-    SpeedEnabled = not SpeedEnabled
-    if SpeedEnabled then
-        Toggle.BackgroundColor3 = Color3.fromRGB(80, 255, 80)
-        Toggle.Text = "ON"
-    else
-        Toggle.BackgroundColor3 = Color3.fromRGB(255, 80, 80)
-        Toggle.Text = "OFF"
-    end
-    setSpeed(CurrentSpeed)
+-- Toggle Speed
+TSpeed.MouseButton1Click:Connect(function()
+    SpeedOn=not SpeedOn; if SpeedOn then TSpeed.BG=Color3.fromRGB(80,255,80); TSpeed.Text="Speed ON" else TSpeed.BG=Color3.fromRGB(255,80,80); TSpeed.Text="Speed OFF" end
+    setSpeed(SpeedVal)
 end)
 
--- ปุ่มเปิดหน้าต่าง
-OpenButton.MouseButton1Click:Connect(function()
-    OpenButton.Visible = false
-    MainFrame.Visible = true
+-- Toggle Jump + Infinite Jump
+TJump.MouseButton1Click:Connect(function()
+    JumpOn=not JumpOn; if JumpOn then TJump.BG=Color3.fromRGB(80,255,80); TJump.Text="Jump ON" else TJump.BG=Color3.fromRGB(255,80,80); TJump.Text="Jump OFF" end
 end)
+UIS.InputBegan:Connect(function(i,gp) if gp or not JumpOn then return end; if i.KeyCode==Enum.KeyCode.Space and Player.Character and Player.Character:FindFirstChild("Humanoid") then Player.Character.Humanoid.Jump=true end end)
 
--- รีสปอนด์ + ป้องกันรีเซ็ต
-Player.CharacterAdded:Connect(function(c)
-    task.wait(1)
-    if SpeedEnabled and c:FindFirstChild("Humanoid") then
-        c.Humanoid.WalkSpeed = CurrentSpeed
-    end
-end)
+-- Respawn
+Player.CharacterAdded:Connect(function(c) task.wait(0.5); if SpeedOn then c:WaitForChild("Humanoid").WalkSpeed=SpeedVal end end)
 
-RunService.Heartbeat:Connect(function()
-    if SpeedEnabled and Player.Character and Player.Character:FindFirstChild("Humanoid") then
-        if Player.Character.Humanoid.WalkSpeed ~= CurrentSpeed then
-            Player.Character.Humanoid.WalkSpeed = CurrentSpeed
-        end
-    end
-end)
-
--- แจ้งเตือนตอนโหลดเสร็จ
-game.StarterGui:SetCore("SendNotification", {
-    Title = "Speed Hack";
-    Text = "กดปุ่มสีฟ้ามุมขวาล่างเพื่อเปิดเมนู!";
-    Duration = 8;
-})
+-- Open/Close
+Open.MouseButton1Click:Connect(function() Open.Visible=false; Panel.Visible=true end)
+Close.MouseButton1Click:Connect(function() Panel.Visible=false; Open.Visible=true end)
 
 setSpeed(50)
+game.StarterGui:SetCore("SendNotification",{Title="🚀 Speed+Jump",Text="กดปุ่มฟ้ามุมขวาล่าง!",Duration=6})
