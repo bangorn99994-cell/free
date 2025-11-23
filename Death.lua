@@ -11,14 +11,14 @@ local ScreenGui = Instance.new("ScreenGui")
 ScreenGui.Parent = LocalPlayer:WaitForChild("PlayerGui")
 
 local Panel = Instance.new("Frame")
-Panel.Size = UDim2.new(0,200,0,120)
+Panel.Size = UDim2.new(0,220,0,180)
 Panel.Position = UDim2.new(0,10,0.7,0)
 Panel.BackgroundColor3 = Color3.fromRGB(40,40,40)
 Panel.Parent = ScreenGui
 
--- ปุ่มมองทะลุ
+-- ปุ่ม ESP
 local EspButton = Instance.new("TextButton")
-EspButton.Size = UDim2.new(0,180,0,40)
+EspButton.Size = UDim2.new(0,200,0,40)
 EspButton.Position = UDim2.new(0,10,0,10)
 EspButton.Text = "Toggle ESP"
 EspButton.BackgroundColor3 = Color3.fromRGB(0,170,255)
@@ -27,9 +27,9 @@ EspButton.Font = Enum.Font.SourceSansBold
 EspButton.TextSize = 20
 EspButton.Parent = Panel
 
--- ปุ่มหายตัว
+-- ปุ่ม Invisible
 local InvisButton = Instance.new("TextButton")
-InvisButton.Size = UDim2.new(0,180,0,40)
+InvisButton.Size = UDim2.new(0,200,0,40)
 InvisButton.Position = UDim2.new(0,10,0,60)
 InvisButton.Text = "Toggle Invisible"
 InvisButton.BackgroundColor3 = Color3.fromRGB(255,100,100)
@@ -37,6 +37,17 @@ InvisButton.TextColor3 = Color3.new(1,1,1)
 InvisButton.Font = Enum.Font.SourceSansBold
 InvisButton.TextSize = 20
 InvisButton.Parent = Panel
+
+-- ปุ่ม Teleport
+local TeleportButton = Instance.new("TextButton")
+TeleportButton.Size = UDim2.new(0,200,0,40)
+TeleportButton.Position = UDim2.new(0,10,0,110)
+TeleportButton.Text = "Teleport (10,5,10)"
+TeleportButton.BackgroundColor3 = Color3.fromRGB(100,255,100)
+TeleportButton.TextColor3 = Color3.new(0,0,0)
+TeleportButton.Font = Enum.Font.SourceSansBold
+TeleportButton.TextSize = 20
+TeleportButton.Parent = Panel
 
 -- ตัวแปรสถานะ
 local espEnabled = false
@@ -92,6 +103,11 @@ InvisButton.MouseButton1Click:Connect(function()
             end
         end
     end
+end)
+
+-- Teleport Button
+TeleportButton.MouseButton1Click:Connect(function()
+    HRP.CFrame = CFrame.new(Vector3.new(10,5,10))
 end)
 
 -- อัปเดตทุกเฟรม
