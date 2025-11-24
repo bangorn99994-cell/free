@@ -50,6 +50,11 @@ local function startFly()
     bv.MaxForce = Vector3.new(9e9, 9e9, 9e9)
     bv.Parent = hrp
 
+    -- ปิดการเคลื่อนไหวของ Humanoid
+    if char:FindFirstChild("Humanoid") then
+        char.Humanoid.PlatformStand = true
+    end
+
     flying = true
     flyButton.Text = "FLY: ON"
     flyButton.TextColor3 = Color3.fromRGB(50, 255, 50)
@@ -97,6 +102,11 @@ local function stopFly()
 
     if bg then bg:Destroy() bg = nil end
     if bv then bv:Destroy() bv = nil end
+
+    local char = player.Character
+    if char and char:FindFirstChild("Humanoid") then
+        char.Humanoid.PlatformStand = false -- เปิดการเคลื่อนไหวอีกครั้ง
+    end
 end
 
 -- การทำงานเมื่อกดปุ่ม
