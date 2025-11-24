@@ -1,104 +1,156 @@
--- INVISIBLE 100% (คนอื่นมองไม่เห็นตัวเราเลย) | 2025
+-- Fly Script for Delta (Mobile Friendly GUI)
+-- เขียนโดย AI Assistant
 
 local Players = game:GetService("Players")
-local Player = Players.LocalPlayer
 local RunService = game:GetService("RunService")
+local Workspace = game:GetService("Workspace")
+local CoreGui = game:GetService("CoreGui")
 
-local IsInvisible = false
+local player = Players.LocalPlayer
+local camera = Workspace.CurrentCamera
+local mouse = player:GetMouse()
 
-local function MakeInvisible()
-    if not Player.Character then return end
-    local char = Player.Character
-    local humanoid = char:FindFirstChildOfClass("Humanoid")
-    local root = char:FindFirstChild("HumanoidRootPart")
+-- การตั้งค่าความเร็ว
+local flySpeed = 50
+local flying = false
+local bv, bg
 
-    -- 1. ทำให้ทุก Part ล่องหนในมุมมองของคนอื่น (Replication)
-    for _, part in ipairs(char:GetDescendants()) do
-        if part:IsA("BasePart") then
-            part.LocalTransparencyModifier = 1
-        elseif part:IsA("Decal") or part:IsA("Texture") then
-            part.Transparency = 1
-        end
-    end
-
-    -- 2. ซ่อนชื่อ + Health Bar + Nametag (สำคัญที่สุด)
-    if humanoid then
-        humanoid.DisplayDistanceType = Enum.HumanoidDisplayDistanceType.None
-    end
-
-    -- 3. ซ่อนตัวละครจาก PlayerList / Leaderboard (บางเกม)
-    if char:FindFirstChild("Head") then
-        for _, v in ipairs(char.Head:GetChildren()) do
-            if v:IsA("BillboardGui") or v:IsA("SurfaceGui") then
-                v.Enabled = false
-            end
-        end
-    end
-
-    IsInvisible = true
-    game.StarterGui:SetCore("SendNotification", {
-        Title = "ล่องหน 100%";
-        Text = "คนอื่นมองไม่เห็นคุณแล้ว!";
-        Duration = 3
-    })
+-- สร้างหน้าจอ GUI (ScreenGui)
+local screenGui = Instance.new("ScreenGui")
+screenGui.Name = "FlyGui_Delta"
+-- พยายามใส่ใน CoreGui เพื่อความปลอดภัย หรือใส่ใน PlayerGui ถ้า Executor บล็อก
+if pcall(function() screenGui.Parent = CoreGui end) then
+    screenGui.Parent = CoreGui
+else
+    screenGui.Parent = player:WaitForChild("PlayerGui")
 end
 
-local function MakeVisible()
-    if not Player.Character then return end
-    local char = Player.Character
-    local humanoid = char:FindFirstChildOfClass("Humanoid")
+-- สร้างปุ่ม (TextButton)
+local flyButton = Instance.new("TextButton")
+flyButton.Name = "FlyButton"
+flyButton.Parent = screenGui
+flyButton.BackgroundColor3 = Color3.fromRGB(33, 33, 33)
+flyButton.BorderSizePixel = 0
+flyButton.Position = UDim2.new(0.8, 0, 0.4, 0) -- ตำแหน่งปุ่ม (ขวาเกือบกลาง)
+flyButton.Size = UDim2.new(0, 60, 0, 60) -- ขนาดปุ่ม
+flyButton.Font = Enum.Font.SourceSansBold
+flyButton.Text = "FLY: OFF"
+flyButton.TextColor3 = Color3.fromRGB(255, 50, 50)
+flyButton.TextSize = 14
+flyButton.LayerCollector.IgnoreGuiInset = true
 
-    for _, part in ipairs(char:GetDescendants()) do
-        if part:IsA("BasePart") then
-            part.LocalTransparencyModifier = 0
-        elseif part:IsA("Decal") or part:IsA("Texture") then
-            part.Transparency = 0
-        end
-    end
+-- ทำให้ปุ่มมุมโค้งมน (UICorner)
+local uiCorner = Instance.new("UICorner")
+uiCorner.CornerRadius = UDim.new(0, 12)
+uiCorner.Parent = flyButton
 
-    if humanoid then
-        humanoid.DisplayDistanceType = Enum.HumanoidDisplayDistanceType.Viewer
-    end
-
-    if char:FindFirstChild("Head") then
-        for _, v in ipairs(char.Head:GetChildren()) do
-            if v:IsA("BillboardGui") or v:IsA("SurfaceGui") then
-                v.Enabled = true
+-- ฟังก์ชันเริ่มบิน (Start Flying)
+local function startFly()
+    local char = player.Character
+    if not char or not char:FindFirstChild("HumanoidRootPart") then return end
+    
+    local hrp = char.HumanoidRootPart
+    
+    -- สร้าง BodyGyro เพื่อพยุงตัว
+    bg = Instance.new("BodyGyro")
+    bg.P = 9e4
+    bg.maxTorque = Vector3.new(9e9, 9e9, 9e9)
+    bg.cframe = hrp.CFrame
+    bg.Parent = hrp
+    
+    -- สร้าง BodyVelocity เพื่อเคลื่อนที่
+    bv = Instance.new("BodyVelocity")
+    bv.velocity = Vector3.new(0, 0, 0)
+    bv.maxForce = Vector3.new(9e9, 9e9, 9e9)
+    bv.Parent = hrp
+    
+    flying = true
+    flyButton.Text = "FLY: ON"
+    flyButton.TextColor3 = Color3.fromRGB(50, 255, 50)
+    
+    -- ลูปการทำงานขณะบิน
+    task.spawn(function()
+        while flying and char:FindFirstChild("Humanoid") and char.Humanoid.Health > 0 do
+            local moveDir = Vector3.new()
+            local camCFrame = camera.CFrame
+            
+            -- การควบคุมสำหรับมือถือ (บินไปตามทิศที่กล้องหัน + การเดินของตัวละคร)
+            -- ถ้ามีการขยับ MoveDirection (จอยสติ๊ก)
+            if char.Humanoid.MoveDirection.Magnitude > 0 then
+                moveDir = char.Humanoid.MoveDirection * flySpeed
+            else
+                moveDir = Vector3.new(0, 0, 0)
             end
+            
+            bg.cframe = camCFrame
+            bv.velocity = moveDir + (camCFrame.LookVector * (char.Humanoid.MoveDirection.Magnitude > 0 and 0 or 0)) 
+            -- ปรับแต่ง: บินตามจอยสติ๊ก ถ้าไม่กดเดินจะหยุดนิ่ง
+            
+            RunService.RenderStepped:Wait()
         end
-    end
-
-    IsInvisible = false
-    game.StarterGui:SetCore("SendNotification", {
-        Title = "กลับมาเห็น";
-        Text = "คนอื่นเห็นคุณอีกครั้ง";
-        Duration = 3
-    })
+        stopFly()
+    end)
 end
 
--- รองรับการรีสปอนด์ 100%
-Player.CharacterAdded:Connect(function()
-    task.wait(1.5)
-    if IsInvisible then
-        MakeInvisible()
+-- ฟังก์ชันหยุดบิน (Stop Flying)
+function stopFly()
+    flying = false
+    flyButton.Text = "FLY: OFF"
+    flyButton.TextColor3 = Color3.fromRGB(255, 50, 50)
+    
+    if bg then bg:Destroy() bg = nil end
+    if bv then bv:Destroy() bv = nil end
+    
+    local char = player.Character
+    if char and char:FindFirstChild("Humanoid") then
+        char.Humanoid.PlatformStand = false
+    end
+end
+
+-- การทำงานเมื่อกดปุ่ม
+flyButton.MouseButton1Click:Connect(function()
+    if flying then
+        stopFly()
+    else
+        startFly()
     end
 end)
 
--- เปิด/ปิดด้วยปุ่ม RightControl (กด 1 ครั้ง = ล่องหน)
-game:GetService("UserInputService").InputBegan:Connect(function(input, gp)
-    if gp then return end
-    if input.KeyCode == Enum.KeyCode.RightControl then
-        if IsInvisible then
-            MakeVisible()
-        else
-            MakeInvisible()
-        end
+-- รีเซ็ตเมื่อตัวละครตาย
+player.CharacterAdded:Connect(function()
+    stopFly()
+end)
+
+-- ทำให้ปุ่มลากไปมาได้ (Draggable)
+local dragging, dragInput, dragStart, startPos
+
+local function update(input)
+    local delta = input.Position - dragStart
+    flyButton.Position = UDim2.new(startPos.X.Scale, startPos.X.Offset + delta.X, startPos.Y.Scale, startPos.Y.Offset + delta.Y)
+end
+
+flyButton.InputBegan:Connect(function(input)
+    if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+        dragging = true
+        dragStart = input.Position
+        startPos = flyButton.Position
+        
+        input.Changed:Connect(function()
+            if input.UserInputState == Enum.UserInputState.End then
+                dragging = false
+            end
+        end)
     end
 end)
 
--- แจ้งตอนโหลดเสร็จ
-game.StarterGui:SetCore("SendNotification", {
-    Title = "Invisible 100% โหลดแล้ว";
-    Text = "กด Right Ctrl เพื่อล่องหน/กลับมาเห็น\nคนอื่นมองไม่เห็นคุณแน่นอน!";
-    Duration = 8
-})
+flyButton.InputChanged:Connect(function(input)
+    if input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch then
+        dragInput = input
+    end
+end)
+
+game:GetService("UserInputService").InputChanged:Connect(function(input)
+    if input == dragInput and dragging then
+        update(input)
+    end
+end)
