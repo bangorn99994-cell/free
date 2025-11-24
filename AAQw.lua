@@ -4,7 +4,7 @@
 local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
 local Workspace = game:GetService("Workspace")
-local CoreGui = game:GetService("CoreGui")
+local UserInputService = game:GetService("UserInputService")
 
 local player = Players.LocalPlayer
 local camera = Workspace.CurrentCamera
@@ -18,12 +18,7 @@ local bv, bg
 -- สร้างหน้าจอ GUI (ScreenGui)
 local screenGui = Instance.new("ScreenGui")
 screenGui.Name = "FlyGui_Delta"
--- พยายามใส่ใน CoreGui เพื่อความปลอดภัย หรือใส่ใน PlayerGui ถ้า Executor บล็อก
-if pcall(function() screenGui.Parent = CoreGui end) then
-    screenGui.Parent = CoreGui
-else
-    screenGui.Parent = player:WaitForChild("PlayerGui")
-end
+screenGui.Parent = player:WaitForChild("PlayerGui") -- ใส่ใน PlayerGui
 
 -- สร้างปุ่ม (TextButton)
 local flyButton = Instance.new("TextButton")
@@ -37,7 +32,6 @@ flyButton.Font = Enum.Font.SourceSansBold
 flyButton.Text = "FLY: OFF"
 flyButton.TextColor3 = Color3.fromRGB(255, 50, 50)
 flyButton.TextSize = 14
-flyButton.LayerCollector.IgnoreGuiInset = true
 
 -- ทำให้ปุ่มมุมโค้งมน (UICorner)
 local uiCorner = Instance.new("UICorner")
@@ -55,13 +49,13 @@ local function startFly()
     bg = Instance.new("BodyGyro")
     bg.P = 9e4
     bg.maxTorque = Vector3.new(9e9, 9e9, 9e9)
-    bg.cframe = hrp.CFrame
+    bg.CFrame = hrp.CFrame
     bg.Parent = hrp
     
     -- สร้าง BodyVelocity เพื่อเคลื่อนที่
     bv = Instance.new("BodyVelocity")
-    bv.velocity = Vector3.new(0, 0, 0)
-    bv.maxForce = Vector3.new(9e9, 9e9, 9e9)
+    bv.Velocity = Vector3.new(0, 0, 0)
+    bv.MaxForce = Vector3.new(9e9, 9e9, 9e9)
     bv.Parent = hrp
     
     flying = true
@@ -75,16 +69,12 @@ local function startFly()
             local camCFrame = camera.CFrame
             
             -- การควบคุมสำหรับมือถือ (บินไปตามทิศที่กล้องหัน + การเดินของตัวละคร)
-            -- ถ้ามีการขยับ MoveDirection (จอยสติ๊ก)
             if char.Humanoid.MoveDirection.Magnitude > 0 then
                 moveDir = char.Humanoid.MoveDirection * flySpeed
-            else
-                moveDir = Vector3.new(0, 0, 0)
             end
             
-            bg.cframe = camCFrame
-            bv.velocity = moveDir + (camCFrame.LookVector * (char.Humanoid.MoveDirection.Magnitude > 0 and 0 or 0)) 
-            -- ปรับแต่ง: บินตามจอยสติ๊ก ถ้าไม่กดเดินจะหยุดนิ่ง
+            bg.CFrame = camCFrame
+            bv.Velocity = moveDir + Vector3.new(0, flySpeed, 0)
             
             RunService.RenderStepped:Wait()
         end
@@ -93,7 +83,7 @@ local function startFly()
 end
 
 -- ฟังก์ชันหยุดบิน (Stop Flying)
-function stopFly()
+local function stopFly()
     flying = false
     flyButton.Text = "FLY: OFF"
     flyButton.TextColor3 = Color3.fromRGB(255, 50, 50)
@@ -119,38 +109,4 @@ end)
 -- รีเซ็ตเมื่อตัวละครตาย
 player.CharacterAdded:Connect(function()
     stopFly()
-end)
-
--- ทำให้ปุ่มลากไปมาได้ (Draggable)
-local dragging, dragInput, dragStart, startPos
-
-local function update(input)
-    local delta = input.Position - dragStart
-    flyButton.Position = UDim2.new(startPos.X.Scale, startPos.X.Offset + delta.X, startPos.Y.Scale, startPos.Y.Offset + delta.Y)
-end
-
-flyButton.InputBegan:Connect(function(input)
-    if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
-        dragging = true
-        dragStart = input.Position
-        startPos = flyButton.Position
-        
-        input.Changed:Connect(function()
-            if input.UserInputState == Enum.UserInputState.End then
-                dragging = false
-            end
-        end)
-    end
-end)
-
-flyButton.InputChanged:Connect(function(input)
-    if input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch then
-        dragInput = input
-    end
-end)
-
-game:GetService("UserInputService").InputChanged:Connect(function(input)
-    if input == dragInput and dragging then
-        update(input)
-    end
 end)
