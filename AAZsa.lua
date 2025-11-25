@@ -1,50 +1,49 @@
-local Player = game.Players.LocalPlayer
-local UIS = game:GetService("UserInputService")
+--// Head Lock Button Script (Safe for your own game)
+
+local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
-local TweenService = game:GetService("TweenService")
-local ReplicatedStorage = game:GetService("ReplicatedStorage")
-local Workspace = game.Workspace
 
--- ตัวอย่างฟังก์ชันใช้งานจริง: โยนข้อความเสียงด้วย TTS หรือเล่นเสียง
--- คุณสามารถปรับแก้ให้เข้ากับระบบของคุณได้
-local function say(text)
-    -- ตัวอย่าง: เล่นเสียงผ่าน Sound ที่แนบใน StarterSound หรือ ReplicatedStorage
-    local soundName = "TTS_Sample" -- ปรับชื่อไฟล์เสียงจริงที่มี
-    local sound = Instance.new("Sound")
-    sound.SoundId = "" -- ใส่ URL หรือ AssetId ของเสียงที่ต้องการ
-    sound.Volume = 1
-    sound.Parent = Workspace
+local player = Players.LocalPlayer
+local camera = workspace.CurrentCamera
 
-    if sound.SoundId ~= "" then
-        sound:Play()
-        sound.Ended:Wait()
-        sound:Destroy()
-    else
-        -- หากไม่มีเสียงจริงให้แสดงข้อความผ่าน Output
-        warn("Text-to-speech เสียงยังไม่ถูกตั้งค่า: " .. tostring(text))
-        sound:Destroy()
+-- CONFIG
+local targetName = "Dummy"   -- Change to the name of NPC you want to lock onto
+local headLockEnabled = false
+
+-- Create Button UI
+local ScreenGui = Instance.new("ScreenGui")
+ScreenGui.Parent = player:WaitForChild("PlayerGui")
+
+local Button = Instance.new("TextButton")
+Button.Size = UDim2.new(0, 150, 0, 50)
+Button.Position = UDim2.new(0.05, 0, 0.8, 0)
+Button.BackgroundColor3 = Color3.fromRGB(45, 45, 45)
+Button.TextColor3 = Color3.new(1, 1, 1)
+Button.TextScaled = true
+Button.Text = "Head Lock OFF"
+Button.Parent = ScreenGui
+
+-- Function to find head of target
+local function getTargetHead()
+    local target = workspace:FindFirstChild(targetName)
+    if target and target:FindFirstChild("Head") then
+        return target.Head
     end
+    return nil
 end
 
--- ตัวอย่างการใช้งาน: บินเมื่อกดปุ่ม Space
-local flying = false
-UIS.InputBegan:Connect(function(input, gameProcessed)
-    if gameProcessed then return end
-    if input.KeyCode == Enum.KeyCode.Space then
-        flying = not flying
-        if flying then
-            say("เริ่มบิน")
-            -- ใส่คำสั่งบินจริงที่คุณมีใน Run Data ที่นี่
-        else
-            say("หยุดบิน")
-            -- ใส่คำสั่งหยุดบินจริงที่นี่
-        end
-    end
+-- Toggle button
+Button.MouseButton1Click:Connect(function()
+    headLockEnabled = not headLockEnabled
+    Button.Text = headLockEnabled and "Head Lock ON" or "Head Lock OFF"
 end)
 
--- ฟังก์ชันอัปเดตสถานะFlight (ตัวอย่าง)
-RunService.RenderStepped:Connect(function(dt)
-    if flying then
-        -- ปรับตำแหน่ง/มุมกล้อง หรือสภาวะบินตาม dt
+-- Update camera
+RunService.RenderStepped:Connect(function()
+    if headLockEnabled then
+        local head = getTargetHead()
+        if head then
+            camera.CFrame = CFrame.new(camera.CFrame.Position, head.Position)
+        end
     end
 end)
