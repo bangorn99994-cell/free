@@ -1,33 +1,90 @@
--- สร้าง panel
-local Panel = Instance.new("ScreenGui")
-Panel.Name = "TransparentPanel"
-Panel.Parent = game.Players.LocalPlayer:WaitForChild("PlayerGui")
+-- Variables
+local player = game.Players.LocalPlayer
+local mouse = player:GetMouse()
+local UIS = game:GetService("UserInputService")
+local RS = game:GetService("RunService")
 
--- สร้าง Frame ที่จะทำหน้าที่เป็น Panel
-local Frame = Instance.new("Frame")
-Frame.Size = UDim2.new(1, 0, 1, 0)  -- ขนาดเต็มหน้าจอ
-Frame.BackgroundColor3 = Color3.fromRGB(255, 255, 255)  -- สีขาว
-Frame.BackgroundTransparency = 0.5  -- ความโปร่งใส 50%
-Frame.Parent = Panel
+-- Function to highlight a button
+local function highlightButton(button)
+    local highlight = Instance.new("Highlight")
+    highlight.Parent = button
+    highlight.FillColor = Color3.new(1, 1, 0) -- Yellow color
+    highlight.OutlineColor = Color3.new(1, 0, 0) -- Red outline
+end
 
--- ใช้เพื่อทำให้ panel สามารถมองทะลุถึงผู้เล่น
-Frame.Active = true
-Frame.Selectable = true
-Frame.BackgroundTransparency = 0.5  -- ปรับความโปร่งใส
+-- Function for aimbot
+local function aimbot()
+    local target = nil
 
--- ฟังก์ชันสำหรับอัพเดทการมองทะลุ
-local function UpdateTransparency()
-    for _, player in ipairs(game.Players:GetPlayers()) do
-        if player ~= game.Players.LocalPlayer then
-            local character = player.Character
-            if character and character:FindFirstChild("HumanoidRootPart") then
-                local distance = (character.HumanoidRootPart.Position - game.Players.LocalPlayer.Character.HumanoidRootPart.Position).magnitude
-                Frame.BackgroundTransparency = math.clamp(distance / 100, 0.1, 0.9) -- ปรับความโปร่งใสตามระยะห่าง
+    -- Function to find the closest enemy
+    local function getClosestEnemy()
+        local closestDistance = math.huge
+        for _, v in pairs(game.Players:GetPlayers()) do
+            if v ~= player and v.Character and v.Character:FindFirstChild("HumanoidRootPart") then
+                local distance = (player.Character.HumanoidRootPart.Position - v.Character.HumanoidRootPart.Position).magnitude
+                if distance < closestDistance then
+                    closestDistance = distance
+                    target = v
+                end
             end
         end
+        return target
+    end
+
+    -- Aim towards the closest enemy
+    RS.RenderStepped:Connect(function()
+        target = getClosestEnemy()
+        if target and target.Character and target.Character:FindFirstChild("HumanoidRootPart") then
+            player.Character.HumanoidRootPart.CFrame = CFrame.new(target.Character.HumanoidRootPart.Position + Vector3.new(0, 0, -5))
+        end
+    end)
+end
+
+-- Function for flying
+local flying = false
+local bodyVelocity
+
+local function fly()
+    if not flying then
+        flying = true
+        local character = player.Character or player.CharacterAdded:Wait()
+        local humanoidRootPart = character:WaitForChild("HumanoidRootPart")
+
+        bodyVelocity = Instance.new("BodyVelocity")
+        bodyVelocity.Velocity = Vector3.new(0, 50, 0) -- Ascend speed
+        bodyVelocity.MaxForce = Vector3.new(4000, 4000, 4000)
+        bodyVelocity.Parent = humanoidRootPart
+        
+        -- Control flying with WASD
+        RS.RenderStepped:Connect(function()
+            if flying then
+                local direction = Vector3.new(0, 0, 0)
+                if UIS:IsKeyDown(Enum.KeyCode.W) then
+                    direction = direction + workspace.CurrentCamera.CFrame.LookVector
+                end
+                if UIS:IsKeyDown(Enum.KeyCode.S) then
+                    direction = direction - workspace.CurrentCamera.CFrame.LookVector
+                end
+                if UIS:IsKeyDown(Enum.KeyCode.A) then
+                    direction = direction - workspace.CurrentCamera.CFrame.RightVector
+                end
+                if UIS:IsKeyDown(Enum.KeyCode.D) then
+                    direction = direction + workspace.CurrentCamera.CFrame.RightVector
+                end
+                bodyVelocity.Velocity = direction * 50 -- Adjust flying speed here
+            end
+        end)
+    else
+        flying = false
+        bodyVelocity:Destroy()
     end
 end
 
--- เรียกใช้งานฟังก์ชันทุก ๆ เฟรม
-game:GetService("RunService").RenderStepped:Connect(UpdateTransparency)
- 
+-- Example usage
+local button = script.Parent -- Assuming this script is a child of a GUI button
+highlightButton(button)
+
+button.MouseButton1Click:Connect(function()
+    aimbot() -- Activate aimbot
+    fly() -- Allow flying
+end)
