@@ -1,7 +1,7 @@
 -- Orion Universal UI (LocalScript)
 -- Features: Player tab (speed/jump/teleport), Visuals (highlight/ESP), World (time/weather stub), Settings (UI toggle, theme)
 -- Designed to be "universal": uses safe fallbacks and checks so it works in most Roblox games (client-side only).
--- Place this as a LocalScript in StarterPlayerScripts or run with an executor that supports Orion.
+-- Place this as a LocalScript in StarterPlayerScripts or run with an executor that supports Orion
 
 -- == Loader: try several common Orion sources with pcall fallback ==
 local Orion = nil
